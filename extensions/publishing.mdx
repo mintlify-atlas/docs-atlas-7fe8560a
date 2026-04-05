@@ -1,0 +1,201 @@
+---
+title: "Publishing Extensions"
+description: "Package and publish your coc.nvim extension to npm so others can install it with :CocInstall."
+---
+
+coc.nvim extensions are standard npm packages. Publishing one is the same as publishing any other npm package, with a few coc-specific conventions in `package.json`.
+
+## Naming convention
+
+Prefix your package name with `coc-`:
+
+```
+coc-my-extension
+```
+
+This convention makes extensions discoverable and clearly identifies them as coc.nvim extensions. The name must be unique on the npm registry.
+
+## Required package.json fields
+
+Before publishing, verify that your `package.json` contains the required fields:
+
+```json package.json
+{
+  "name": "coc-my-extension",
+  "version": "1.0.0",
+  "description": "Short description of what this extension does.",
+  "main": "lib/index.js",
+  "engines": {
+    "coc": "^0.0.82"
+  },
+  "keywords": ["coc.nvim"],
+  "license": "MIT",
+  "activationEvents": ["*"],
+  "contributes": {}
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `name` | Yes | Must be unique on npm. Use the `coc-` prefix. |
+| `version` | Yes | Follow semver. |
+| `main` | Yes | Path to the compiled JavaScript entry file. |
+| `engines.coc` | Yes | Minimum coc.nvim version this extension supports. |
+| `description` | Recommended | Shown in `:CocList extensions` and on npm. |
+| `keywords` | Recommended | Include `"coc.nvim"` to improve discoverability. |
+
+<Warning>
+  Never publish source TypeScript files as the `main` entry. The `main` field must point to compiled JavaScript. Verify this before running `npm publish`.
+</Warning>
+
+## Building before publishing
+
+If you are using TypeScript or a bundler, compile your code before publishing.
+
+<Tabs>
+  <Tab title="TypeScript (tsc)">
+    ```bash
+    npm run build
+    ```
+
+    A typical `tsconfig.json` outputs to `lib/`:
+
+    ```json tsconfig.json
+    {
+      "compilerOptions": {
+        "module": "commonjs",
+        "target": "ES2019",
+        "outDir": "lib",
+        "rootDir": "src",
+        "strict": true
+      }
+    }
+    ```
+  </Tab>
+  <Tab title="esbuild">
+    ```bash
+    node build.js
+    ```
+
+    See [Creating Extensions](/extensions/creating-extensions#bundling-with-esbuild) for a full esbuild script. Always mark `coc.nvim` as external.
+  </Tab>
+</Tabs>
+
+Add a `prepublishOnly` script to ensure the build always runs before publishing:
+
+```json package.json
+{
+  "scripts": {
+    "build": "node build.js",
+    "prepublishOnly": "npm run build"
+  }
+}
+```
+
+Use a `.npmignore` file (or the `files` field in `package.json`) to exclude source files and development artifacts from the published package:
+
+```text .npmignore
+src/
+*.ts
+tsconfig.json
+build.js
+.github/
+```
+
+## Testing locally before publishing
+
+Before publishing to npm, test the extension in Vim by loading it from your local file system.
+
+<Tabs>
+  <Tab title="runtimepath">
+    Add the extension directory to Vim's `runtimepath` in your vimrc:
+
+    ```vim
+    set runtimepath^=/path/to/coc-my-extension
+    ```
+
+    coc.nvim will detect and load the extension from the directory.
+  </Tab>
+  <Tab title="vim-plug">
+    Point vim-plug at the local directory:
+
+    ```vim
+    Plug '/path/to/coc-my-extension', {'do': 'npm install'}
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Use `:CocList extensions` to confirm the extension has loaded and check its activation state.
+</Tip>
+
+## Publishing to npm
+
+<Steps>
+  <Step title="Create an npm account">
+    If you do not have one, register at [npmjs.com](https://www.npmjs.com/) and run:
+
+    ```bash
+    npm login
+    ```
+  </Step>
+
+  <Step title="Verify the package contents">
+    Check what will be included in the published package before committing:
+
+    ```bash
+    npm pack --dry-run
+    ```
+
+    Confirm that `lib/` is present and that `src/` and other dev files are excluded.
+  </Step>
+
+  <Step title="Publish">
+    ```bash
+    npm publish
+    ```
+
+    For the initial publish of a scoped package, add the `--access public` flag:
+
+    ```bash
+    npm publish --access public
+    ```
+  </Step>
+</Steps>
+
+Once published, users can install your extension with:
+
+```vim
+:CocInstall coc-my-extension
+```
+
+## Versioning
+
+Follow [semver](https://semver.org/):
+
+| Change | Version bump |
+|---|---|
+| Bug fixes, documentation updates | Patch (`1.0.0` → `1.0.1`) |
+| New features, backwards-compatible | Minor (`1.0.0` → `1.1.0`) |
+| Breaking changes | Major (`1.0.0` → `2.0.0`) |
+
+Update the version with npm before publishing:
+
+```bash
+npm version patch   # or minor, or major
+npm publish
+```
+
+### engines.coc compatibility
+
+The `engines.coc` field uses semver ranges to declare which coc.nvim versions your extension supports. When you use APIs introduced in a newer version of coc.nvim, update this field accordingly:
+
+```json
+"engines": {
+  "coc": "^0.0.82"
+}
+```
+
+<Note>
+  coc.nvim checks the `engines.coc` field at install time and will warn users if their version of coc.nvim does not satisfy the declared range.
+</Note>

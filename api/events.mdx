@@ -1,0 +1,510 @@
+---
+title: "events"
+description: "The events module provides a typed pub/sub system for Vim/Neovim editor events such as cursor moves, buffer changes, insert mode transitions, and more."
+---
+
+The `events` module is a singleton that bridges Vim/Neovim autocmd events into JavaScript handlers. Access it via:
+
+```javascript
+const { events } = require('coc.nvim')
+```
+
+---
+
+## Subscribing to events
+
+### events.on
+
+```typescript
+events.on(
+  event: AllEvents | AllEvents[],
+  handler: (...args: any[]) => void | Promise<void>,
+  thisArg?: any,
+  disposables?: Disposable[] | true
+): Disposable
+```
+
+Registers a handler for one or more events. Returns a `Disposable` that removes the handler when disposed.
+
+- Pass an array of event names to subscribe to multiple events with a single handler.
+- Pass `context.subscriptions` (a `Disposable[]`) as `disposables` to auto-unsubscribe on deactivation.
+- Pass `true` as `disposables` to make it a one-time handler (fires once, then unsubscribes).
+
+```javascript
+// Single event
+context.subscriptions.push(
+  events.on('BufEnter', (bufnr) => {
+    console.log(`Entered buffer: ${bufnr}`)
+  })
+)
+
+// Multiple events with shared handler
+events.on(['InsertEnter', 'InsertLeave'], (bufnr) => {
+  console.log(`Insert mode changed in buffer: ${bufnr}`)
+}, null, context.subscriptions)
+```
+
+---
+
+### events.once
+
+```typescript
+events.once(
+  event: AllEvents,
+  handler: (...args: any[]) => void | Promise<void>,
+  thisArg?: any
+): Disposable
+```
+
+Like `events.on`, but the handler is invoked at most once then automatically removed. Equivalent to passing `true` as `disposables`.
+
+```javascript
+events.once('ready', () => {
+  console.log('coc.nvim is ready')
+})
+```
+
+---
+
+### events.race
+
+```typescript
+events.race(
+  events: AllEvents[],
+  token?: number | CancellationToken
+): Promise<{ name: AllEvents; args: unknown[] } | undefined>
+```
+
+Returns a `Promise` that resolves with the first event from `events` that fires. Useful for waiting on user action.
+
+- Pass a `number` as `token` to set a timeout in milliseconds — resolves `undefined` on timeout.
+- Pass a `CancellationToken` as `token` to cancel waiting externally — resolves `undefined` on cancellation.
+
+```javascript
+// Wait up to 5 seconds for the user to enter or leave insert mode
+const result = await events.race(['InsertEnter', 'InsertLeave'], 5000)
+if (result) {
+  console.log(`Got event: ${result.name}`, result.args)
+} else {
+  console.log('Timed out')
+}
+```
+
+---
+
+### events.fire
+
+```typescript
+events.fire(event: string, args: any[]): Promise<void>
+```
+
+Manually fires an event with the given arguments. Primarily used in tests.
+
+```javascript
+await events.fire('BufEnter', [1])
+```
+
+---
+
+## State properties
+
+These read-only properties reflect the current editor state tracked by the events system.
+
+<ResponseField name="insertMode" type="boolean">
+  `true` when Vim is in insert mode (mode starts with `'i'` and `_insertMode` flag is set).
+</ResponseField>
+
+<ResponseField name="pumvisible" type="boolean">
+  `true` when the completion popup menu is visible.
+</ResponseField>
+
+<ResponseField name="pumAlignTop" type="boolean">
+  `true` when the popup menu is aligned to the top of the screen.
+</ResponseField>
+
+<ResponseField name="pumInserted" type="boolean">
+  `true` when the popup menu inserted a completion item.
+</ResponseField>
+
+<ResponseField name="completing" type="boolean">
+  `true` while a completion session is active.
+</ResponseField>
+
+<ResponseField name="cursor" type="CursorPosition">
+  The most recently tracked cursor position.
+
+  ```typescript
+  interface CursorPosition {
+    readonly bufnr: number
+    readonly lnum: number   // 1-based
+    readonly col: number    // 1-based byte column
+    readonly insert: boolean
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="bufnr" type="number">
+  The buffer number of the most recently active buffer.
+</ResponseField>
+
+<ResponseField name="mode" type="string">
+  The current Vim mode string (e.g., `'n'`, `'i'`, `'v'`).
+</ResponseField>
+
+<ResponseField name="ready" type="boolean">
+  `true` once the `'ready'` event has been fired.
+</ResponseField>
+
+<ResponseField name="lastChangeTs" type="number">
+  Unix timestamp (ms) of the most recent `TextChanged`, `TextChangedI`, or `TextChangedP` event.
+</ResponseField>
+
+<ResponseField name="requesting" type="boolean">
+  `true` while coc.nvim is performing a synchronous request to Vim. Slow event handlers are logged when this is `true`.
+</ResponseField>
+
+<ResponseField name="timeout" type="number">
+  Threshold in milliseconds after which a slow handler warning is logged. Default: `1000`.
+</ResponseField>
+
+---
+
+## Event reference
+
+### Buffer events
+
+<Tabs>
+  <Tab title="BufEnter">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when the cursor enters a buffer.
+  </Tab>
+  <Tab title="BufHidden">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when a buffer becomes hidden.
+  </Tab>
+  <Tab title="BufRename">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when a buffer is renamed.
+  </Tab>
+  <Tab title="BufCreate">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when a new buffer is created.
+  </Tab>
+  <Tab title="BufUnload">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when a buffer is unloaded.
+  </Tab>
+  <Tab title="BufDetach">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when coc.nvim detaches from a buffer.
+  </Tab>
+  <Tab title="BufWritePre">
+    ```
+    handler: (bufnr: number, bufname: string, changedtick: number) => void
+    ```
+    Fires before a buffer is written.
+  </Tab>
+  <Tab title="BufWritePost">
+    ```
+    handler: (bufnr: number, changedtick: number) => void
+    ```
+    Fires after a buffer is written.
+  </Tab>
+</Tabs>
+
+---
+
+### Window events
+
+<Tabs>
+  <Tab title="WinEnter">
+    ```
+    handler: (winid: number) => void
+    ```
+    Fires when the cursor enters a window.
+  </Tab>
+  <Tab title="WinLeave">
+    ```
+    handler: (winid: number) => void
+    ```
+    Fires when the cursor leaves a window.
+  </Tab>
+  <Tab title="WinClosed">
+    ```
+    handler: (winid: number) => void
+    ```
+    Fires when a window is closed.
+  </Tab>
+  <Tab title="WinScrolled">
+    ```
+    handler: (winid: number, bufnr: number, region: Readonly<[number, number]>) => void
+    ```
+    Fires when a window is scrolled. `region` is `[topline, botline]`.
+  </Tab>
+  <Tab title="WindowVisible">
+    ```
+    handler: (event: VisibleEvent) => void
+
+    interface VisibleEvent {
+      winid: number
+      bufnr: number
+      region: [number, number]  // 1-based, end inclusive
+    }
+    ```
+    Debounced event fired after `BufWinEnter` or `WinScrolled` stabilizes.
+  </Tab>
+  <Tab title="BufWinEnter">
+    ```
+    handler: (bufnr: number, winid: number) => void
+    ```
+    Fires when a buffer is displayed in a window.
+  </Tab>
+  <Tab title="BufWinLeave">
+    ```
+    handler: (bufnr: number, winid: number) => void
+    ```
+    Fires when a buffer leaves a window.
+  </Tab>
+</Tabs>
+
+---
+
+### Cursor events
+
+<Tabs>
+  <Tab title="CursorMoved">
+    ```
+    handler: (bufnr: number, cursor: [number, number], hasInsert: boolean) => void
+    ```
+    Fires when the cursor moves in normal mode. `cursor` is `[lnum, col]` (1-based). `hasInsert` indicates if there were recent insertions.
+  </Tab>
+  <Tab title="CursorMovedI">
+    ```
+    handler: (bufnr: number, cursor: [number, number], hasInsert: boolean) => void
+    ```
+    Fires when the cursor moves in insert mode.
+  </Tab>
+  <Tab title="CursorHold">
+    ```
+    handler: (bufnr: number, cursor: [number, number], winid: number) => void
+    ```
+    Fires when the cursor is held still in normal mode.
+  </Tab>
+  <Tab title="CursorHoldI">
+    ```
+    handler: (bufnr: number, cursor: [number, number], winid: number) => void
+    ```
+    Fires when the cursor is held still in insert mode.
+  </Tab>
+</Tabs>
+
+---
+
+### Insert mode events
+
+<Tabs>
+  <Tab title="InsertEnter">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when entering insert mode.
+  </Tab>
+  <Tab title="InsertLeave">
+    ```
+    handler: (bufnr: number) => void
+    ```
+    Fires when leaving insert mode.
+  </Tab>
+  <Tab title="InsertCharPre">
+    ```
+    handler: (character: string, bufnr: number) => void
+    ```
+    Fires before an inserted character is applied to the buffer.
+  </Tab>
+</Tabs>
+
+---
+
+### Text change events
+
+<Tabs>
+  <Tab title="TextChanged">
+    ```
+    handler: (bufnr: number, changedtick: number) => void
+    ```
+    Fires when a buffer's text changes in normal mode.
+  </Tab>
+  <Tab title="TextChangedI">
+    ```
+    handler: (bufnr: number, info: InsertChange) => void
+    ```
+    Fires when a buffer's text changes in insert mode.
+
+    ```typescript
+    interface InsertChange {
+      readonly lnum: number
+      readonly col: number
+      readonly line: string
+      readonly changedtick: number
+      pre: string             // text before cursor
+      insertChar?: string     // character that triggered this change
+      insertChars?: string[]  // recent inserted characters
+    }
+    ```
+  </Tab>
+  <Tab title="TextChangedP">
+    ```
+    handler: (bufnr: number, info: InsertChange) => void
+    ```
+    Fires when text changes while the popup menu is visible.
+  </Tab>
+  <Tab title="TextInsert">
+    ```
+    handler: (bufnr: number, info: InsertChange, character: string) => void
+    ```
+    Fires (via `process.nextTick`) after `TextChangedI` when a recognized character was inserted.
+  </Tab>
+</Tabs>
+
+---
+
+### Tab events
+
+```
+TabNew    handler: (tabid: number) => void
+TabClosed handler: (tabids: number[]) => void
+```
+
+---
+
+### Completion events
+
+```
+CompleteDone  handler: (item: CompleteDoneItem | object, line: number, bufnr: number) => void
+CompleteStart handler: (option: Readonly<CompleteOption>) => void
+MenuPopupChanged handler: (event: PopupChangeEvent, cursorline: number) => void
+```
+
+`PopupChangeEvent`:
+
+```typescript
+interface PopupChangeEvent {
+  readonly startcol: number
+  readonly index: number
+  readonly word: string
+  readonly height: number
+  readonly width: number
+  readonly row: number
+  readonly col: number
+  readonly size: number
+  readonly scrollbar: boolean
+  readonly inserted: boolean
+  readonly move: boolean
+}
+```
+
+---
+
+### Misc events
+
+| Event | Handler signature | Description |
+|-------|-------------------|-------------|
+| `FileType` | `(filetype: string, bufnr: number)` | Buffer filetype detected or changed |
+| `DirChanged` | `(cwd: string)` | Working directory changed |
+| `VimResized` | `(columns: number, lines: number)` | Terminal/window resized |
+| `ModeChanged` | `(event: ModeChangedEvent)` | Vim mode changed |
+| `OptionSet` | `(option: string, oldVal, newVal)` | A Vim option changed |
+| `GlobalChange` | `(option: string, oldVal, newVal)` | A global variable changed |
+| `FocusGained` | `()` | Editor regained focus |
+| `FocusLost` | `()` | Editor lost focus |
+| `ColorScheme` | `()` | Color scheme changed |
+| `VimLeavePre` | `()` | Vim is about to exit |
+| `Command` | `(name: string)` | A command was invoked via `fireCommand` |
+| `TermOpen` | `(bufnr: number)` | A terminal buffer was opened |
+| `TermExit` | `(bufnr: number, status: number)` | A terminal process exited |
+| `TaskExit` | `(id: string, code: number)` | A Task exited |
+| `TaskStdout` | `(id: string, lines: string[])` | Task stdout output |
+| `TaskStderr` | `(id: string, lines: string[])` | Task stderr output |
+| `BufReadCmd` | `(scheme: string, fullpath: string)` | Buffer read via custom scheme |
+| `InputChar` | `(session: string, character: string, mode: number)` | Character received in input mode |
+| `PlaceholderJump` | `(bufnr: number, info: JumpInfo)` | Snippet placeholder jumped |
+| `InsertSnippet` | `()` | A snippet was inserted |
+| `FloatBtnClick` | `(bufnr: number, index: number)` | Float window button clicked |
+| `PromptInsert` | `(value: string, bufnr: number)` | Prompt received input |
+| `PromptExit` | `(bufnr: number)` | Prompt closed |
+| `PromptKeyPress` | `(bufnr: number, key: string)` | Key pressed in a prompt |
+| `InputListSelect` | `(index: number)` | Item selected from an input list |
+| `PumNavigate` | `(bufnr: number)` | Navigation in the popup menu |
+| `Enter` | `(bufnr: number)` | Buffer entered (internal) |
+| `LinesChanged` | `(bufnr: number)` | Lines changed (internal) |
+| `ready` | `()` | coc.nvim finished initializing |
+
+---
+
+## ModeChangedEvent
+
+```typescript
+interface ModeChangedEvent {
+  readonly old_mode: string
+  readonly new_mode: string
+}
+```
+
+---
+
+## Usage examples
+
+<CodeGroup>
+```javascript Cursor hold action
+const { events, workspace } = require('coc.nvim')
+
+events.on('CursorHold', async (bufnr) => {
+  const doc = workspace.getDocument(bufnr)
+  if (!doc) return
+  // trigger diagnostic refresh, etc.
+}, null, context.subscriptions)
+```
+
+```javascript One-shot ready handler
+const { events, window } = require('coc.nvim')
+
+events.once('ready', () => {
+  window.showMessage('coc.nvim is ready!')
+})
+```
+
+```javascript Race between events
+const { events } = require('coc.nvim')
+
+async function waitForUserAction() {
+  const result = await events.race(
+    ['InsertEnter', 'CursorMoved', 'BufEnter'],
+    3000  // 3 second timeout
+  )
+  if (!result) return 'timeout'
+  return result.name
+}
+```
+
+```javascript Insert mode tracking
+const { events } = require('coc.nvim')
+
+events.on('TextChangedI', (bufnr, info) => {
+  if (info.insertChar === '.') {
+    // trigger member completion
+  }
+}, null, context.subscriptions)
+```
+</CodeGroup>

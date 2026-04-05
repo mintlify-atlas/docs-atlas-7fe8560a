@@ -1,0 +1,204 @@
+---
+title: "Snippets"
+description: "TextMate and UltiSnips snippet support with tab-stop navigation, nested snippets, and integration with coc-snippets."
+---
+
+Coc.nvim has a built-in snippet engine that supports both VSCode-style TextMate snippets and UltiSnips-format snippets. Snippets can be delivered as completion items by language servers or extensions, or loaded from standalone snippet files via `coc-snippets`.
+
+## How snippets work
+
+When a completion item is a snippet (indicated by `isSnippet: true` in the item data, or an `insertTextFormat` of `Snippet` from LSP), confirming the item with `coc#pum#confirm()` or `coc#pum#select_confirm()` expands it into the buffer and activates a snippet session.
+
+During a snippet session, placeholders are highlighted and you can jump between them. The session ends when you reach the final placeholder, move outside the snippet, or cancel manually.
+
+Completion items that are snippets have their label suffixed with the snippet indicator character (`~` by default, configurable via `suggest.snippetIndicator`).
+
+## TextMate snippet syntax
+
+Coc.nvim supports the full TextMate/VSCode snippet syntax:
+
+| Syntax | Description |
+|---|---|
+| `$1`, `$2`, … | Numbered tab stops |
+| `$0` | Final cursor position |
+| `${1:default}` | Tab stop with a default value |
+| `${1\|option1,option2\|}` | Tab stop with a choice list |
+| `$TM_FILENAME` | Current filename |
+| `$TM_SELECTED_TEXT` | Text that was visually selected before expansion |
+| `${VISUAL}` | Alias for `$TM_SELECTED_TEXT` |
+
+Snippets can be nested. When you jump to a tab stop of the outer snippet, you cannot jump back to the inner snippet's tab stops (matching UltiSnips behavior).
+
+## Installing coc-snippets
+
+The `coc-snippets` extension adds snippet file loading (VSCode `.json`, UltiSnips `.snippets`, and SnipMate format), UltiSnips integration, and a dedicated expand-and-jump mapping.
+
+Install it with:
+
+```vim
+:CocInstall coc-snippets
+```
+
+Or declare it globally so it installs automatically on startup:
+
+```vim
+let g:coc_global_extensions = ['coc-snippets']
+```
+
+## Expanding snippets and jumping placeholders
+
+### Expand and jump with `<c-j>`
+
+The `coc-snippets` extension provides `<Plug>(coc-snippets-expand-jump)`, which expands the snippet under the cursor or jumps to the next placeholder if a session is active.
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('i', '<c-j>', '<Plug>(coc-snippets-expand-jump)')
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    imap <c-j> <Plug>(coc-snippets-expand-jump)
+    ```
+  </Tab>
+</Tabs>
+
+### Default placeholder navigation
+
+Without `coc-snippets`, the built-in snippet engine uses `g:coc_snippet_next` and `g:coc_snippet_prev` for placeholder navigation. These default to `<C-j>` and `<C-k>` and are only active while a snippet session is running.
+
+```vim
+" Defaults — no configuration needed unless you want different keys
+let g:coc_snippet_next = '<C-j>'
+let g:coc_snippet_prev = '<C-k>'
+```
+
+### All-in-one Tab mapping (VSCode style)
+
+To use `<Tab>` for popup confirmation, inline completion acceptance, snippet expansion, and placeholder jumping — all with a single key:
+
+```vim
+inoremap <silent><expr> <TAB>
+  \ coc#pum#visible() ? coc#pum#select_confirm() :
+  \ coc#inline#visible() ? coc#inline#accept() :
+  \ coc#expandableOrJumpable() ?
+  \ "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" :
+  \ CheckBackspace() ? "\<TAB>" :
+  \ coc#refresh()
+
+let g:coc_snippet_next = '<tab>'
+```
+
+<Note>
+  This all-in-one mapping requires the `coc-snippets` extension.
+</Note>
+
+## Snippet sessions
+
+A snippet session activates when a snippet is expanded. During the session:
+
+- Buffer key mappings for `g:coc_snippet_next` and `g:coc_snippet_prev` are added automatically.
+- The `b:coc_snippet_active` variable is set to `1`.
+- The `CocJumpPlaceholder` autocmd fires after each placeholder jump.
+- Current placeholders are highlighted with the `CocSnippetVisual` highlight group (when enabled).
+
+The session deactivates when:
+
+- You jump to the final (`$0`) placeholder.
+- You leave insert mode outside of the snippet range.
+- A change affects both the snippet body and text outside it.
+
+To cancel a session manually:
+
+```vim
+call CocAction('snippetCancel')
+```
+
+## UltiSnips and other snippet sources
+
+`coc-snippets` can load and integrate snippets from multiple sources:
+
+<CardGroup cols={2}>
+  <Card title="UltiSnips" icon="bolt">
+    Loads `.snippets` files from `UltiSnips` directories in your `runtimepath`. Python-based UltiSnips features (interpolation, transformations) require the Python UltiSnips package installed separately.
+  </Card>
+  <Card title="SnipMate" icon="file-code">
+    Loads SnipMate-format snippet files. Useful if you are migrating from vim-snipmate.
+  </Card>
+  <Card title="VSCode JSON snippets" icon="braces">
+    Loads `.json` snippet files in the VSCode format, including those shipped with coc.nvim extensions.
+  </Card>
+  <Card title="Custom snippet files" icon="pen">
+    Define your own snippets in files placed in the `coc-snippets` snippet directory.
+  </Card>
+</CardGroup>
+
+## Creating custom snippets
+
+To create snippets for a specific filetype, open the snippet file for that filetype:
+
+```vim
+:CocCommand snippets.editSnippets
+```
+
+This opens (or creates) a UltiSnips-format `.snippets` file for the current buffer's filetype. Example:
+
+```snippets
+snippet fn "arrow function" b
+const ${1:name} = (${2:params}) => {
+  $0
+}
+endsnippet
+
+snippet cl "class" b
+class ${1:Name} {
+  constructor(${2:params}) {
+    $0
+  }
+}
+endsnippet
+```
+
+To open the global snippets file (applies to all filetypes):
+
+```vim
+:CocCommand snippets.openSnippetFiles
+```
+
+## Related configuration
+
+| Setting | Description | Default |
+|---|---|---|
+| `suggest.snippetIndicator` | Character appended to snippet item labels | `"~"` |
+| `suggest.preferCompleteThanJumpPlaceholder` | Prefer completing a new item over jumping to the next placeholder when `<Tab>` is pressed | `false` |
+| `snippet.highlight` | Highlight active snippet placeholders | `false` |
+| `snippet.nextPlaceholderOnDelete` | Jump to next placeholder when the current one is deleted | `false` |
+
+```json
+{
+  "suggest.snippetIndicator": "~",
+  "snippet.highlight": true
+}
+```
+
+## Related variables and autocmds
+
+| Variable / Autocmd | Description |
+|---|---|
+| `g:coc_snippet_next` | Key to jump to the next placeholder (default: `<C-j>`) |
+| `g:coc_snippet_prev` | Key to jump to the previous placeholder (default: `<C-k>`) |
+| `g:coc_selected_text` | Text for `${VISUAL}` / `$TM_SELECTED_TEXT` in the next expansion |
+| `g:coc_selectmode_mapping` | Add select-mode mappings for easier placeholder editing (default: `1`) |
+| `b:coc_snippet_active` | Set to `1` while a snippet session is active |
+| `CocJumpPlaceholder` | Autocmd that fires after each placeholder jump |
+
+## Snippet-related functions
+
+| Function | Description |
+|---|---|
+| `coc#expandable()` | Returns `1` if the word under cursor is an expandable snippet |
+| `coc#jumpable()` | Returns `1` if a snippet session is active with jumpable placeholders |
+| `coc#expandableOrJumpable()` | Returns `1` if either of the above is true |
+| `coc#snippet#next()` | Jump to next placeholder |
+| `coc#snippet#prev()` | Jump to previous placeholder |

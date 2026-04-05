@@ -1,0 +1,178 @@
+---
+title: "Statusline Integration"
+description: "How to integrate coc.nvim status information into your Vim or Neovim statusline, including native Vim statusline, Lightline, Airline, and Lualine."
+---
+
+coc.nvim exposes two primary sources of information for your statusline:
+
+- `coc#status()` — returns a string containing current diagnostic counts and any status messages contributed by extensions.
+- `b:coc_current_function` — a buffer-local variable set to the name of the function (or method, class, etc.) that the cursor is currently inside.
+
+---
+
+## Native Vim statusline
+
+The simplest integration prepends both items directly to the built-in `statusline` option.
+
+<Tabs>
+  <Tab title="Vimscript">
+    ```vim
+    " Add (Neo)Vim's native statusline support
+    " NOTE: Please see `:h coc-status` for integrations with external plugins that
+    " provide custom statusline: lightline.vim, vim-airline
+    set statusline^=%{coc#status()}%{get(b:,'coc_current_function','')}
+    ```
+  </Tab>
+  <Tab title="Lua">
+    ```lua
+    -- Add (Neo)Vim's native statusline support
+    vim.opt.statusline:prepend("%{coc#status()}%{get(b:,'coc_current_function','')}")
+    ```
+  </Tab>
+</Tabs>
+
+`%{...}` evaluates a Vimscript expression and inserts the result. Using `^=` (Vimscript) or `:prepend()` (Lua) places the coc.nvim output at the start of the statusline without discarding your existing format string.
+
+### What `coc#status()` shows
+
+`coc#status()` returns a formatted string that includes:
+
+- The current diagnostic summary for the buffer (error and warning counts, using the characters configured by `diagnostic.errorSign` and `diagnostic.warningSign`).
+- Any status messages contributed by loaded extensions via `g:coc_status`.
+
+### Forcing a redraw
+
+The statusline does not redraw automatically when coc.nvim updates its status. Add this autocmd to keep it current:
+
+```vim
+autocmd User CocStatusChange redrawstatus
+```
+
+### Custom statusline function
+
+For full control over the format, build your own function using the `b:coc_diagnostic_info` dictionary:
+
+```vim
+function! StatusDiagnostic() abort
+  let info = get(b:, 'coc_diagnostic_info', {})
+  if empty(info) | return '' | endif
+  let msgs = []
+  if get(info, 'error', 0)
+    call add(msgs, 'E' . info['error'])
+  endif
+  if get(info, 'warning', 0)
+    call add(msgs, 'W' . info['warning'])
+  endif
+  return join(msgs, ' ') . ' ' . get(g:, 'coc_status', '')
+endfunction
+```
+
+Add `%{StatusDiagnostic()}` to your `statusline` option to use it.
+
+---
+
+## `b:coc_current_function`
+
+This buffer-local variable is updated by coc.nvim and contains a string representing the function (or method, class, namespace, etc.) that the cursor is currently inside, as reported by the language server's `documentSymbol` provider.
+
+To display it in any statusline, read it with `get(b:, 'coc_current_function', '')`. The `get()` call with a default of `''` prevents errors when the variable is not set.
+
+<Note>
+  Enable `suggest.currentFunctionSymbolAutoUpdate` in your `coc-settings.json`
+  to update `b:coc_current_function` on every cursor move. By default it only
+  updates on `CursorHold`.
+</Note>
+
+---
+
+## Lightline
+
+[lightline.vim](https://github.com/itchyny/lightline.vim) requires you to register `coc#status` as a component function and force a refresh when coc.nvim reports changes.
+
+```vim
+let g:lightline = {
+      \ 'colorscheme': 'wombat',
+      \ 'active': {
+      \   'left': [ [ 'mode', 'paste' ],
+      \             [ 'cocstatus', 'readonly', 'filename', 'modified' ] ]
+      \ },
+      \ 'component_function': {
+      \   'cocstatus': 'coc#status'
+      \ },
+      \ }
+
+" Use autocmd to force lightline update.
+autocmd User CocStatusChange,CocDiagnosticChange call lightline#update()
+```
+
+To also show the current function name, add a second component:
+
+```vim
+let g:lightline = {
+      \ 'colorscheme': 'wombat',
+      \ 'active': {
+      \   'left': [ [ 'mode', 'paste' ],
+      \             [ 'cocstatus', 'currentfunction', 'readonly', 'filename', 'modified' ] ]
+      \ },
+      \ 'component_function': {
+      \   'cocstatus': 'coc#status',
+      \   'currentfunction': 'CocCurrentFunction'
+      \ },
+      \ }
+
+function! CocCurrentFunction()
+    return get(b:, 'coc_current_function', '')
+endfunction
+
+autocmd User CocStatusChange,CocDiagnosticChange call lightline#update()
+```
+
+---
+
+## Airline
+
+[vim-airline](https://github.com/vim-airline/vim-airline) detects coc.nvim automatically when both plugins are loaded. No additional configuration is required for basic diagnostic integration.
+
+For details on available configuration variables, see `:help airline-coc` after installing vim-airline.
+
+<Tip>
+  If airline does not pick up coc.nvim, ensure coc.nvim is loaded before
+  vim-airline in your plugin manager, or call `:AirlineRefresh` after startup.
+</Tip>
+
+---
+
+## Lualine
+
+[lualine.nvim](https://github.com/nvim-lualine/lualine.nvim) does not have built-in coc.nvim awareness, but you can add `coc#status()` and `b:coc_current_function` as custom components.
+
+```lua
+local function coc_status()
+  return vim.fn['coc#status']()
+end
+
+local function coc_current_function()
+  return vim.b.coc_current_function or ''
+end
+
+require('lualine').setup({
+  sections = {
+    lualine_c = {
+      'filename',
+      coc_status,
+      coc_current_function,
+    },
+  },
+})
+```
+
+To keep lualine current, trigger a refresh when coc.nvim reports status changes:
+
+```lua
+vim.api.nvim_create_autocmd('User', {
+  pattern = { 'CocStatusChange', 'CocDiagnosticChange' },
+  callback = function()
+    require('lualine').refresh()
+  end,
+})
+```

@@ -1,0 +1,256 @@
+---
+title: "Code Actions"
+description: "Invoke language server code actions for quickfixes, refactoring, organize imports, and more."
+---
+
+Code actions are commands offered by a language server that make targeted changes to your code. They cover a broad range of use cases: fixing a diagnostic, extracting a variable, organizing imports, or applying a source-level transformation.
+
+## Code action kinds
+
+| Kind | Description |
+|---|---|
+| `quickfix` | Fix one or more diagnostics on the current line or range |
+| `refactor` | Structural code changes (extract, inline, rename, etc.) |
+| `source` | File-wide actions such as organize imports |
+| `organizeImport` | Sort and remove unused import statements |
+
+## Key mappings
+
+Add the following to your `init.lua` or `init.vim`:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    local opts = { silent = true, nowait = true }
+
+    -- Code action at cursor position
+    keyset('n', '<leader>ac', '<Plug>(coc-codeaction-cursor)', opts)
+
+    -- Source code actions for the whole file
+    keyset('n', '<leader>as', '<Plug>(coc-codeaction-source)', opts)
+
+    -- Apply the most preferred quickfix on the current line
+    keyset('n', '<leader>qf', '<Plug>(coc-fix-current)', opts)
+
+    -- Code action on visual selection
+    keyset('x', '<leader>a', '<Plug>(coc-codeaction-selected)', opts)
+    keyset('n', '<leader>a', '<Plug>(coc-codeaction-selected)', opts)
+
+    -- Refactor code actions
+    keyset('n', '<leader>re', '<Plug>(coc-codeaction-refactor)', { silent = true })
+    keyset('x', '<leader>r',  '<Plug>(coc-codeaction-refactor-selected)', { silent = true })
+    keyset('n', '<leader>r',  '<Plug>(coc-codeaction-refactor-selected)', { silent = true })
+
+    -- Code Lens action on the current line
+    keyset('n', '<leader>cl', '<Plug>(coc-codelens-action)', opts)
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    " Code action at cursor position
+    nmap <leader>ac  <Plug>(coc-codeaction-cursor)
+
+    " Source code actions for the whole file
+    nmap <leader>as  <Plug>(coc-codeaction-source)
+
+    " Apply the most preferred quickfix on the current line
+    nmap <leader>qf  <Plug>(coc-fix-current)
+
+    " Code action on visual selection (e.g., <leader>aap for paragraph)
+    xmap <leader>a   <Plug>(coc-codeaction-selected)
+    nmap <leader>a   <Plug>(coc-codeaction-selected)
+
+    " Refactor code actions
+    nmap <silent> <leader>re <Plug>(coc-codeaction-refactor)
+    xmap <silent> <leader>r  <Plug>(coc-codeaction-refactor-selected)
+    nmap <silent> <leader>r  <Plug>(coc-codeaction-refactor-selected)
+
+    " Code Lens action on the current line
+    nmap <leader>cl  <Plug>(coc-codelens-action)
+    ```
+  </Tab>
+</Tabs>
+
+## Plug mapping reference
+
+| Mapping | Action |
+|---|---|
+| `<Plug>(coc-codeaction-cursor)` | Show code actions using an empty range at cursor (matches VSCode behavior) |
+| `<Plug>(coc-codeaction-source)` | Show source code actions for the entire file |
+| `<Plug>(coc-codeaction-line)` | Show code actions for the current line |
+| `<Plug>(coc-codeaction)` | Show code actions for the current file |
+| `<Plug>(coc-codeaction-selected)` | Show code actions for the visual/motion selection |
+| `<Plug>(coc-codeaction-refactor)` | Show refactor actions at cursor (disabled actions not excluded) |
+| `<Plug>(coc-codeaction-refactor-selected)` | Show refactor actions for selected code |
+| `<Plug>(coc-fix-current)` | Apply the first available quickfix on the current line directly |
+| `<Plug>(coc-codelens-action)` | Invoke the code lens command on the current line |
+
+All mappings except `<Plug>(coc-fix-current)` open a menu dialog to pick a specific action.
+
+## Formatting
+
+### Format the current buffer
+
+Create a `:Format` command:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    vim.api.nvim_create_user_command('Format', "call CocAction('format')", {})
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    command! -nargs=0 Format :call CocActionAsync('format')
+    ```
+  </Tab>
+</Tabs>
+
+Then run:
+
+```vim
+:Format
+```
+
+### Format selected code
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('x', '<leader>f', '<Plug>(coc-format-selected)', { silent = true })
+    keyset('n', '<leader>f', '<Plug>(coc-format-selected)', { silent = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    xmap <leader>f  <Plug>(coc-format-selected)
+    nmap <leader>f  <Plug>(coc-format-selected)
+    ```
+  </Tab>
+</Tabs>
+
+You can also configure `formatexpr` for specific filetypes so that `gq` works for range formatting:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    vim.api.nvim_create_autocmd('FileType', {
+      pattern = 'typescript,json',
+      command = "setl formatexpr=CocAction('formatSelected')",
+    })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    autocmd FileType typescript,json setl formatexpr=CocAction('formatSelected')
+    ```
+  </Tab>
+</Tabs>
+
+### Format on save
+
+Enable automatic formatting when saving a buffer:
+
+```json
+{
+  "coc.preferences.formatOnSave": true
+}
+```
+
+Or use a `BufWritePre` autocmd for more control:
+
+```vim
+autocmd BufWritePre * call CocAction('format')
+```
+
+<Warning>
+  Use the synchronous `CocAction('format')` (not `CocActionAsync`) in `BufWritePre` to ensure the format completes before the file is written. The operation is cancelled after 500 ms (configurable via `coc.preferences.willSaveHandlerTimeout`).
+</Warning>
+
+## Organize imports
+
+Create an `:OR` command to organize imports in the current file:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    vim.api.nvim_create_user_command(
+      'OR',
+      "call CocActionAsync('runCommand', 'editor.action.organizeImport')",
+      {}
+    )
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    command! -nargs=0 OR :call CocActionAsync('runCommand', 'editor.action.organizeImport')
+    ```
+  </Tab>
+</Tabs>
+
+Then run:
+
+```vim
+:OR
+```
+
+To run organize imports automatically on save, configure `editor.codeActionsOnSave`:
+
+```json
+{
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+  }
+}
+```
+
+## Code Lens
+
+Code Lens shows additional inline information above specific lines — for example, reference counts, test run buttons, or debugging actions contributed by the language server or an extension.
+
+<Note>
+  Code Lens is disabled by default. Enable it with `"codeLens.enable": true` in `coc-settings.json`. You may also need to enable the feature in your language server or extension configuration.
+</Note>
+
+```json
+{
+  "codeLens.enable": true
+}
+```
+
+Invoke the code lens action on the current line:
+
+```vim
+" Using the plug mapping (mapped to <leader>cl above)
+nmap <leader>cl <Plug>(coc-codelens-action)
+
+" Or toggle code lens display for the current buffer
+:CocCommand document.toggleCodeLens
+```
+
+Check whether the current buffer has a code lens provider:
+
+```vim
+:echo CocAction('hasProvider', 'codeLens')
+```
+
+## Related API
+
+Use `CocAction` for programmatic access:
+
+```vim
+" List code actions at cursor
+call CocAction('codeActions')
+
+" Apply a specific code action
+call CocAction('doCodeAction', action)
+
+" Apply first quickfix on current line
+call CocAction('doQuickfix')
+
+" Apply all auto-fixable diagnostics
+call CocAction('fixAll')
+
+" Organize imports (synchronous)
+call CocAction('organizeImport')
+```

@@ -1,0 +1,549 @@
+---
+title: "languages"
+description: "The languages module lets extensions register LSP feature providers — completion, hover, definition, formatting, code actions, and more."
+---
+
+The `languages` module is the primary extension point for contributing language intelligence features. Access it via:
+
+```javascript
+const { languages } = require('coc.nvim')
+```
+
+All registration methods return a `Disposable`. Push it to `context.subscriptions` so coc.nvim automatically unregisters the provider when the extension is deactivated.
+
+---
+
+## Document selectors
+
+Most methods accept a `DocumentSelector` as their first argument. This controls which documents the provider applies to.
+
+```typescript
+// Match by language ID
+'typescript'
+
+// Match by scheme and pattern
+{ scheme: 'file', pattern: '**/*.ts' }
+
+// Array of selectors (OR logic)
+[{ language: 'typescript' }, { language: 'javascript' }]
+```
+
+---
+
+## Completion
+
+### registerCompletionItemProvider
+
+```typescript
+registerCompletionItemProvider(
+  name: string,
+  shortcut: string,
+  selector: DocumentSelector | string | null,
+  provider: CompletionItemProvider,
+  triggerCharacters?: string[],
+  priority?: number,
+  allCommitCharacters?: string[]
+): Disposable
+```
+
+Registers a completion provider. `name` is the unique source name shown in logs; `shortcut` is the abbreviated label shown in the popup menu (e.g., `'TS'`).
+
+The provider must implement `provideCompletionItems(document, position, token, context)` and optionally `resolveCompletionItem(item, token)`.
+
+```javascript
+const disposable = languages.registerCompletionItemProvider(
+  'myext-completion',
+  'MY',
+  ['typescript', 'javascript'],
+  {
+    provideCompletionItems(document, position, token, context) {
+      return [
+        { label: 'myKeyword', kind: CompletionItemKind.Keyword }
+      ]
+    }
+  },
+  ['.', '"']  // trigger characters
+)
+context.subscriptions.push(disposable)
+```
+
+---
+
+### registerInlineCompletionItemProvider
+
+```typescript
+registerInlineCompletionItemProvider(
+  selector: DocumentSelector,
+  provider: InlineCompletionItemProvider
+): Disposable
+```
+
+Registers a provider for inline ghost-text completions (like Copilot). The provider implements `provideInlineCompletionItems(document, position, context, token)`.
+
+---
+
+## Hover
+
+### registerHoverProvider
+
+```typescript
+registerHoverProvider(selector: DocumentSelector, provider: HoverProvider): Disposable
+```
+
+Registers a hover provider. The provider implements `provideHover(document, position, token)` and returns a `Hover` object with markdown content.
+
+```javascript
+languages.registerHoverProvider(['typescript'], {
+  provideHover(document, position, token) {
+    return {
+      contents: { kind: 'markdown', value: '**My hover content**' }
+    }
+  }
+})
+```
+
+---
+
+## Definitions & Navigation
+
+### registerDefinitionProvider
+
+```typescript
+registerDefinitionProvider(selector: DocumentSelector, provider: DefinitionProvider): Disposable
+```
+
+The provider implements `provideDefinition(document, position, token)` and returns `Location | Location[] | LocationLink[]`.
+
+---
+
+### registerDeclarationProvider
+
+```typescript
+registerDeclarationProvider(selector: DocumentSelector, provider: DeclarationProvider): Disposable
+```
+
+---
+
+### registerTypeDefinitionProvider
+
+```typescript
+registerTypeDefinitionProvider(selector: DocumentSelector, provider: TypeDefinitionProvider): Disposable
+```
+
+---
+
+### registerImplementationProvider
+
+```typescript
+registerImplementationProvider(selector: DocumentSelector, provider: ImplementationProvider): Disposable
+```
+
+---
+
+### registerReferencesProvider
+
+```typescript
+registerReferencesProvider(selector: DocumentSelector, provider: ReferenceProvider): Disposable
+```
+
+Alias: `registerReferenceProvider` (VS Code-compatible name).
+
+The provider implements `provideReferences(document, position, context, token)`.
+
+---
+
+## Rename
+
+### registerRenameProvider
+
+```typescript
+registerRenameProvider(selector: DocumentSelector, provider: RenameProvider): Disposable
+```
+
+The provider implements `provideRenameEdits(document, position, newName, token)` and optionally `prepareRename(document, position, token)`.
+
+---
+
+## Formatting
+
+### registerDocumentFormattingEditProvider
+
+```typescript
+registerDocumentFormattingEditProvider(
+  selector: DocumentSelector,
+  provider: DocumentFormattingEditProvider,
+  priority?: number
+): Disposable
+```
+
+Alias of `registerDocumentFormatProvider`. Registers a full-document formatter. The provider implements `provideDocumentFormattingEdits(document, options, token)`.
+
+```javascript
+languages.registerDocumentFormattingEditProvider(['json'], {
+  provideDocumentFormattingEdits(document, options, token) {
+    const text = JSON.stringify(JSON.parse(document.getText()), null, options.tabSize)
+    const range = Range.create(0, 0, document.lineCount, 0)
+    return [TextEdit.replace(range, text + '\n')]
+  }
+})
+```
+
+---
+
+### registerDocumentRangeFormattingEditProvider
+
+```typescript
+registerDocumentRangeFormattingEditProvider(
+  selector: DocumentSelector,
+  provider: DocumentRangeFormattingEditProvider,
+  priority?: number
+): Disposable
+```
+
+Alias of `registerDocumentRangeFormatProvider`. The provider implements `provideDocumentRangeFormattingEdits(document, range, options, token)`.
+
+---
+
+### registerOnTypeFormattingEditProvider
+
+```typescript
+registerOnTypeFormattingEditProvider(
+  selector: DocumentSelector,
+  provider: OnTypeFormattingEditProvider,
+  triggerCharacters?: string[]
+): Disposable
+```
+
+Registers a provider that formats on specific trigger characters (e.g., `';'`, `'}'`).
+
+---
+
+## Code Actions
+
+### registerCodeActionProvider
+
+```typescript
+registerCodeActionProvider(
+  selector: DocumentSelector,
+  provider: CodeActionProvider,
+  clientId: string | undefined,
+  codeActionKinds?: CodeActionKind[]
+): Disposable
+```
+
+Registers a code action provider. `clientId` identifies the source (e.g., the language client ID). `codeActionKinds` restricts the kinds this provider handles (e.g., `[CodeActionKind.QuickFix]`).
+
+The provider implements `provideCodeActions(document, range, context, token)` and optionally `resolveCodeAction(action, token)`.
+
+```javascript
+languages.registerCodeActionProvider(
+  ['typescript'],
+  {
+    provideCodeActions(document, range, context, token) {
+      return [{
+        title: 'My quick fix',
+        kind: CodeActionKind.QuickFix,
+        edit: { /* WorkspaceEdit */ }
+      }]
+    }
+  },
+  'my-ext-client',
+  [CodeActionKind.QuickFix]
+)
+```
+
+---
+
+## Code Lens
+
+### registerCodeLensProvider
+
+```typescript
+registerCodeLensProvider(selector: DocumentSelector, provider: CodeLensProvider): Disposable
+```
+
+The provider implements `provideCodeLenses(document, token)` and optionally `resolveCodeLens(lens, token)`. Fires `onDidCodeLensRefresh` when registered or disposed.
+
+---
+
+## Symbols
+
+### registerDocumentSymbolProvider
+
+```typescript
+registerDocumentSymbolProvider(
+  selector: DocumentSelector,
+  provider: DocumentSymbolProvider,
+  metadata?: DocumentSymbolProviderMetadata
+): Disposable
+```
+
+The provider implements `provideDocumentSymbols(document, token)` and returns `DocumentSymbol[]`.
+
+---
+
+### registerWorkspaceSymbolProvider
+
+```typescript
+registerWorkspaceSymbolProvider(provider: WorkspaceSymbolProvider): Disposable
+```
+
+No selector — applies workspace-wide. The provider implements `provideWorkspaceSymbols(query, token)` and optionally `resolveWorkspaceSymbol(symbol, token)`.
+
+---
+
+## Signature Help
+
+### registerSignatureHelpProvider
+
+```typescript
+registerSignatureHelpProvider(
+  selector: DocumentSelector,
+  provider: SignatureHelpProvider,
+  triggerCharacters?: string[]
+): Disposable
+```
+
+The provider implements `provideSignatureHelp(document, position, token, context)`.
+
+```javascript
+languages.registerSignatureHelpProvider(
+  ['typescript'],
+  {
+    provideSignatureHelp(document, position, token, context) {
+      return {
+        signatures: [{ label: 'myFn(arg: string)', parameters: [] }],
+        activeSignature: 0,
+        activeParameter: 0
+      }
+    }
+  },
+  ['(', ',']
+)
+```
+
+---
+
+## Highlights
+
+### registerDocumentHighlightProvider
+
+```typescript
+registerDocumentHighlightProvider(selector: DocumentSelector, provider: DocumentHighlightProvider): Disposable
+```
+
+The provider implements `provideDocumentHighlights(document, position, token)` and returns `DocumentHighlight[]`.
+
+---
+
+## Folding & Selection
+
+### registerFoldingRangeProvider
+
+```typescript
+registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable
+```
+
+The provider implements `provideFoldingRanges(document, context, token)`. Fires `onDidFoldingRangeRefresh`.
+
+---
+
+### registerSelectionRangeProvider
+
+```typescript
+registerSelectionRangeProvider(selector: DocumentSelector, provider: SelectionRangeProvider): Disposable
+```
+
+The provider implements `provideSelectionRanges(document, positions, token)`.
+
+---
+
+## Call & Type Hierarchy
+
+### registerCallHierarchyProvider
+
+```typescript
+registerCallHierarchyProvider(selector: DocumentSelector, provider: CallHierarchyProvider): Disposable
+```
+
+The provider implements `prepareCallHierarchy`, `provideCallHierarchyIncomingCalls`, and `provideCallHierarchyOutgoingCalls`.
+
+---
+
+### registerTypeHierarchyProvider
+
+```typescript
+registerTypeHierarchyProvider(selector: DocumentSelector, provider: TypeHierarchyProvider): Disposable
+```
+
+---
+
+## Semantic Tokens
+
+### registerDocumentSemanticTokensProvider
+
+```typescript
+registerDocumentSemanticTokensProvider(
+  selector: DocumentSelector,
+  provider: DocumentSemanticTokensProvider,
+  legend: SemanticTokensLegend
+): Disposable
+```
+
+The provider implements `provideDocumentSemanticTokens(document, token)` and optionally `provideDocumentSemanticTokensDelta`. Requires a `SemanticTokensLegend` describing the token types and modifiers.
+
+```javascript
+const legend = {
+  tokenTypes: ['variable', 'function', 'class'],
+  tokenModifiers: ['declaration', 'readonly']
+}
+languages.registerDocumentSemanticTokensProvider(['typescript'], provider, legend)
+```
+
+---
+
+### registerDocumentRangeSemanticTokensProvider
+
+```typescript
+registerDocumentRangeSemanticTokensProvider(
+  selector: DocumentSelector,
+  provider: DocumentRangeSemanticTokensProvider,
+  legend: SemanticTokensLegend
+): Disposable
+```
+
+Range-based variant of the semantic tokens provider.
+
+---
+
+## Inlay Hints & Inline Values
+
+### registerInlayHintsProvider
+
+```typescript
+registerInlayHintsProvider(selector: DocumentSelector, provider: InlayHintsProvider): Disposable
+```
+
+The provider implements `provideInlayHints(document, range, token)`. Fires `onDidInlayHintRefresh`.
+
+---
+
+### registerInlineValuesProvider
+
+```typescript
+registerInlineValuesProvider(selector: DocumentSelector, provider: InlineValuesProvider): Disposable
+```
+
+---
+
+## Document Links & Colors
+
+### registerDocumentLinkProvider
+
+```typescript
+registerDocumentLinkProvider(selector: DocumentSelector, provider: DocumentLinkProvider): Disposable
+```
+
+The provider implements `provideDocumentLinks(document, token)` and optionally `resolveDocumentLink(link, token)`. Fires `onDidLinksRefresh`.
+
+---
+
+### registerDocumentColorProvider
+
+```typescript
+registerDocumentColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable
+```
+
+The provider implements `provideDocumentColors(document, token)` and `provideColorPresentations(color, context, token)`. Fires `onDidColorsRefresh`.
+
+---
+
+## Linked Editing
+
+### registerLinkedEditingRangeProvider
+
+```typescript
+registerLinkedEditingRangeProvider(selector: DocumentSelector, provider: LinkedEditingRangeProvider): Disposable
+```
+
+---
+
+## Events emitted by languages
+
+<ResponseField name="onDidSemanticTokensRefresh" type="Event<DocumentSelector>">
+  Fires when a semantic tokens provider is registered or disposed.
+</ResponseField>
+
+<ResponseField name="onDidFoldingRangeRefresh" type="Event<DocumentSelector>">
+  Fires when a folding range provider is registered or disposed.
+</ResponseField>
+
+<ResponseField name="onDidInlayHintRefresh" type="Event<DocumentSelector>">
+  Fires when an inlay hints provider is registered or disposed.
+</ResponseField>
+
+<ResponseField name="onDidCodeLensRefresh" type="Event<DocumentSelector>">
+  Fires when a code lens provider is registered or disposed.
+</ResponseField>
+
+<ResponseField name="onDidColorsRefresh" type="Event<DocumentSelector>">
+  Fires when a document color provider is registered or disposed.
+</ResponseField>
+
+<ResponseField name="onDidLinksRefresh" type="Event<DocumentSelector>">
+  Fires when a document link provider is registered or disposed.
+</ResponseField>
+
+---
+
+## Provider name constants
+
+The `ProviderName` enum lists internal names used by coc.nvim to identify provider types:
+
+```typescript
+import { ProviderName } from 'coc.nvim'
+
+ProviderName.Hover           // 'hover'
+ProviderName.Definition      // 'definition'
+ProviderName.CodeAction      // 'codeAction'
+ProviderName.Format          // 'format'
+ProviderName.FormatRange     // 'formatRange'
+ProviderName.Rename          // 'rename'
+ProviderName.CodeLens        // 'codeLens'
+ProviderName.SemanticTokens  // 'semanticTokens'
+ProviderName.InlayHint       // 'inlayHint'
+// …and more
+```
+
+---
+
+## Full example
+
+```javascript
+const { languages, workspace, Disposable, CompletionItemKind } = require('coc.nvim')
+
+async function activate(context) {
+  // Completion
+  context.subscriptions.push(
+    languages.registerCompletionItemProvider(
+      'myext',
+      'MY',
+      ['plaintext'],
+      {
+        provideCompletionItems() {
+          return [{ label: 'hello', kind: CompletionItemKind.Text }]
+        }
+      }
+    )
+  )
+
+  // Hover
+  context.subscriptions.push(
+    languages.registerHoverProvider(['plaintext'], {
+      provideHover(document, position) {
+        return { contents: ['Hover from myext'] }
+      }
+    })
+  )
+}
+```

@@ -1,0 +1,209 @@
+---
+title: 'Language servers'
+description: 'How to get language support in coc.nvim: installing coc extensions or configuring raw language servers directly in coc-settings.json.'
+---
+
+coc.nvim provides LSP features through two complementary approaches. You can use either or both at the same time.
+
+<CardGroup cols={2}>
+  <Card title="coc extensions" icon="puzzle-piece">
+    Pre-packaged extensions that bundle a language server and wire up all configuration automatically.
+
+    ```vim
+    :CocInstall coc-tsserver coc-pyright
+    ```
+  </Card>
+  <Card title="Raw language servers" icon="terminal">
+    Configure any language server binary directly in `coc-settings.json` under the `"languageserver"` key.
+  </Card>
+</CardGroup>
+
+Extensions are the easiest path for popular languages. Raw language server configuration gives you control for any LSP-compliant server not covered by an extension.
+
+## Configuring a raw language server
+
+Add an entry to `"languageserver"` in your `coc-settings.json` (open with `:CocConfig`). The key is a name you choose; the value is the server configuration.
+
+```json
+{
+  "languageserver": {
+    "go": {
+      "command": "gopls",
+      "rootPatterns": ["go.mod"],
+      "trace.server": "verbose",
+      "filetypes": ["go"]
+    }
+  }
+}
+```
+
+## Common properties
+
+These properties apply to all language server configurations.
+
+| Property | Type | Description |
+|---|---|---|
+| `filetypes` | `string[]` | **Required.** Filetypes the server should handle. Use `["*"]` for all filetypes. Verify the filetype with `:CocCommand document.echoFiletype`. |
+| `rootPatterns` | `string[]` | File or directory names used to locate the workspace root. Resolved from the file upward. |
+| `requireRootPattern` | `boolean` | If `true`, the server will not start when no root pattern is found. |
+| `settings` | `object` | Settings sent to the server at initialization via `workspace/didChangeConfiguration`. |
+| `initializationOptions` | `object` | Options sent to the server in the `initialize` request (deprecated; prefer `settings`). |
+| `trace.server` | `string` | Trace level for server communication: `"off"`, `"messages"`, or `"verbose"`. Visible in the output channel. |
+| `enable` | `boolean` | Set to `false` to disable the server without removing its configuration. |
+| `env` | `object` | Environment variables for the server child process. |
+| `cwd` | `string` | Working directory for the server process. Defaults to Vim's cwd. |
+| `maxRestartCount` | `number` | Maximum restart attempts within 3 minutes. Default: `4`. |
+| `disabledFeatures` | `string[]` | Disable specific LSP features for this server (e.g., `["completion", "hover"]`). |
+| `formatterPriority` | `number` | Priority of this server's formatter when multiple formatters are available. |
+| `revealOutputChannelOn` | `string` | Message level that causes the output channel to open automatically. |
+
+## Transport types
+
+Language servers can be started in different ways depending on how the binary communicates.
+
+<AccordionGroup>
+  <Accordion title="stdio (most common)">
+    The server reads from stdin and writes to stdout. This is the default for command-based servers.
+
+    ```json
+    {
+      "languageserver": {
+        "go": {
+          "command": "gopls",
+          "args": [],
+          "filetypes": ["go"],
+          "rootPatterns": ["go.mod"]
+        }
+      }
+    }
+    ```
+
+    **Additional properties for command servers:**
+
+    | Property | Type | Description |
+    |---|---|---|
+    | `command` | `string` | Executable name (resolved from `$PATH`) or absolute path. |
+    | `args` | `string[]` | Command-line arguments passed to the executable. |
+    | `detached` | `boolean` | Start the server as a detached process. |
+    | `shell` | `boolean` | Run the command through the shell. Default: `false`. |
+  </Accordion>
+  <Accordion title="socket">
+    Connect to an already-running language server over a TCP socket. Useful when the server manages its own lifecycle or when you want to share one server instance across multiple Vim sessions.
+
+    ```json
+    {
+      "languageserver": {
+        "my-server": {
+          "host": "127.0.0.1",
+          "port": 2089,
+          "filetypes": ["mylang"]
+        }
+      }
+    }
+    ```
+
+    **Additional properties for socket servers:**
+
+    | Property | Type | Description |
+    |---|---|---|
+    | `port` | `number` | TCP port of the running server. |
+    | `host` | `string` | Hostname or IP. Default: `"127.0.0.1"`. |
+  </Accordion>
+  <Accordion title="pipe / ipc (Node.js modules)">
+    Start a language server from a Node.js module file using IPC or named pipe transport. This is used for servers distributed as npm packages.
+
+    ```json
+    {
+      "languageserver": {
+        "my-node-server": {
+          "module": "/path/to/server.js",
+          "transport": "ipc",
+          "filetypes": ["js"]
+        }
+      }
+    }
+    ```
+
+    **Additional properties for module servers:**
+
+    | Property | Type | Description |
+    |---|---|---|
+    | `module` | `string` | Absolute path to the JavaScript entry file. |
+    | `transport` | `string` | `"ipc"` (default), `"stdio"`, `"socket"`, or `"pipe"`. |
+    | `transportPort` | `number` | Port number when `transport` is `"socket"`. |
+    | `runtime` | `string` | Absolute path to the Node.js runtime. Defaults to the runtime used by coc.nvim. |
+    | `execArgv` | `string[]` | Arguments passed to Node itself (e.g., `["--inspect-brk=6045"]` for debugging). |
+    | `args` | `string[]` | Extra arguments passed to the module. |
+  </Accordion>
+</AccordionGroup>
+
+## More configuration examples
+
+<CodeGroup>
+
+```json Rust (rust-analyzer)
+{
+  "languageserver": {
+    "rust": {
+      "command": "rust-analyzer",
+      "filetypes": ["rust"],
+      "rootPatterns": ["Cargo.toml"]
+    }
+  }
+}
+```
+
+```json Python (pylsp)
+{
+  "languageserver": {
+    "python": {
+      "command": "pylsp",
+      "filetypes": ["python"],
+      "rootPatterns": [
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        ".git"
+      ]
+    }
+  }
+}
+```
+
+```json C/C++ (clangd)
+{
+  "languageserver": {
+    "clangd": {
+      "command": "clangd",
+      "args": ["--background-index"],
+      "filetypes": ["c", "cpp", "objc", "objcpp"],
+      "rootPatterns": ["compile_flags.txt", "compile_commands.json", ".git"]
+    }
+  }
+}
+```
+
+</CodeGroup>
+
+## Debugging language servers
+
+When a language server does not behave as expected, use the output channel to inspect communication logs.
+
+<Steps>
+  <Step title="Enable verbose tracing">
+    Set `"trace.server": "verbose"` in the server's configuration to log all messages exchanged between coc.nvim and the server.
+  </Step>
+  <Step title="Open the output channel">
+    Run `:CocCommand workspace.showOutput` to open the output channel for the server. Select the server name from the list.
+  </Step>
+  <Step title="Check coc.nvim's own log">
+    Run `:CocOpenLog` to open the coc.nvim log file, which records startup errors and internal events.
+  </Step>
+  <Step title="Verify the server is starting">
+    Run `:CocInfo` (or `:checkhealth` in Neovim) to see the status of running services.
+  </Step>
+</Steps>
+
+<Warning>
+A language server only starts for filetypes listed in its `filetypes` array. Run `:CocCommand document.echoFiletype` to confirm the filetype coc.nvim sees for the current buffer matches what you configured.
+</Warning>

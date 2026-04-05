@@ -1,0 +1,598 @@
+---
+title: "window"
+description: "The window module provides UI primitives: messages, input dialogs, quick picks, output channels, status bar items, terminals, and progress indicators."
+---
+
+The `window` module exposes all user-facing UI operations. Access it via:
+
+```javascript
+const { window } = require('coc.nvim')
+```
+
+---
+
+## Properties
+
+<ResponseField name="activeTextEditor" type="TextEditor | undefined">
+  The currently focused text editor, or `undefined` when no editor is active.
+</ResponseField>
+
+<ResponseField name="visibleTextEditors" type="TextEditor[]">
+  All text editors that are currently visible (not necessarily focused).
+</ResponseField>
+
+<ResponseField name="terminals" type="ReadonlyArray<TerminalModel>">
+  All terminal instances currently open.
+</ResponseField>
+
+<ResponseField name="highlights" type="Highlights">
+  Internal highlight manager. Use `window.diffHighlights()` and `window.applyDiffHighlights()`.
+</ResponseField>
+
+<ResponseField name="cursors" type="Cursors">
+  Multiple-cursors controller.
+</ResponseField>
+
+<ResponseField name="dialogs" type="Dialogs">
+  Internal dialog manager. Prefer the higher-level `show*` methods.
+</ResponseField>
+
+<ResponseField name="notifications" type="Notifications">
+  Internal notification manager. Prefer the higher-level `show*` methods.
+</ResponseField>
+
+---
+
+## Events
+
+<ResponseField name="onDidChangeActiveTextEditor" type="Event<TextEditor | undefined>">
+  Fires when the active text editor changes.
+</ResponseField>
+
+<ResponseField name="onDidChangeVisibleTextEditors" type="Event<ReadonlyArray<TextEditor>>">
+  Fires when the set of visible text editors changes.
+</ResponseField>
+
+<ResponseField name="onDidTabClose" type="Event<number>">
+  Fires with the tab ID when a tab is closed.
+</ResponseField>
+
+<ResponseField name="onDidOpenTerminal" type="Event<TerminalModel>">
+  Fires when a new terminal is opened.
+</ResponseField>
+
+<ResponseField name="onDidCloseTerminal" type="Event<TerminalModel>">
+  Fires when a terminal is closed.
+</ResponseField>
+
+---
+
+## Notifications
+
+### showMessage
+
+```typescript
+showMessage(msg: string, messageType?: 'more' | 'warning' | 'error'): void
+```
+
+Echoes a message at the bottom of the editor. `messageType` defaults to `'more'`.
+
+```javascript
+window.showMessage('Hello from my extension!')
+window.showMessage('Something went wrong', 'error')
+```
+
+---
+
+### showInformationMessage
+
+```typescript
+showInformationMessage<T extends MessageItem | string>(
+  message: string,
+  ...items: T[]
+): Promise<T | undefined>
+```
+
+Shows an information notification. When `items` are provided they are rendered as clickable action buttons. Returns the selected item or `undefined` if dismissed.
+
+```javascript
+const action = await window.showInformationMessage(
+  'File saved successfully.',
+  'Open Log',
+  'Dismiss'
+)
+if (action === 'Open Log') {
+  // open log
+}
+```
+
+---
+
+### showWarningMessage
+
+```typescript
+showWarningMessage<T extends MessageItem | string>(
+  message: string,
+  ...items: T[]
+): Promise<T | undefined>
+```
+
+Shows a warning notification. Signature identical to `showInformationMessage`.
+
+---
+
+### showErrorMessage
+
+```typescript
+showErrorMessage<T extends MessageItem | string>(
+  message: string,
+  ...items: T[]
+): Promise<T | undefined>
+```
+
+Shows an error notification. Signature identical to `showInformationMessage`.
+
+---
+
+## Input & Dialogs
+
+### requestInput
+
+```typescript
+requestInput(
+  title: string,
+  value?: string,
+  option?: InputOptions
+): Promise<string | undefined>
+```
+
+Prompts the user for text input in a float/popup window. Returns the entered string or `undefined` when canceled.
+
+```javascript
+const name = await window.requestInput('Enter your name', 'World')
+if (name) {
+  window.showMessage(`Hello, ${name}!`)
+}
+```
+
+---
+
+### createInputBox
+
+```typescript
+createInputBox(
+  title: string,
+  value: string | undefined,
+  option?: InputPreference
+): Promise<InputBox>
+```
+
+Creates an `InputBox` instance for fine-grained control over the input UI, similar to VS Code's `createInputBox`.
+
+---
+
+### showPrompt
+
+```typescript
+showPrompt(title: string): Promise<boolean>
+```
+
+Shows a confirmation prompt. Returns `true` if the user confirmed, `false` otherwise.
+
+```javascript
+const confirmed = await window.showPrompt('Are you sure you want to delete?')
+if (confirmed) {
+  // proceed
+}
+```
+
+---
+
+### showDialog
+
+```typescript
+showDialog(config: DialogConfig): Promise<Dialog | null>
+```
+
+Shows a dialog window at the center of the screen with configurable buttons. Returns `null` when dialogs are not supported.
+
+---
+
+### showQuickpick
+
+```typescript
+showQuickpick(items: string[], placeholder?: string): Promise<number>
+```
+
+<Note>
+  Deprecated. Prefer `window.showMenuPicker()` or `window.showQuickPick()`.
+</Note>
+
+Shows a numbered list and returns the 0-based index of the selected item, or `-1` when canceled.
+
+---
+
+### showQuickPick
+
+```typescript
+showQuickPick(
+  itemsOrItemsPromise: Item[] | Promise<Item[]>,
+  options?: QuickPickOptions,
+  token?: CancellationToken
+): Promise<Item | Item[] | undefined>
+```
+
+Shows a selection list of `Item` objects. Supports multi-select via `options`. Returns the selected item(s) or `undefined`.
+
+```javascript
+const item = await window.showQuickPick(
+  [
+    { label: 'Option A', description: 'First option' },
+    { label: 'Option B', description: 'Second option' },
+  ],
+  { title: 'Choose an option' }
+)
+```
+
+---
+
+### createQuickPick
+
+```typescript
+createQuickPick<T extends QuickPickItem>(config?: QuickPickConfig<T>): Promise<QuickPick<T>>
+```
+
+Creates a `QuickPick<T>` instance for fine-grained control over the picker UI, similar to VS Code's `createQuickPick`.
+
+---
+
+### showMenuPicker
+
+```typescript
+showMenuPicker(
+  items: string[] | MenuItem[],
+  option?: MenuOption,
+  token?: CancellationToken
+): Promise<number>
+```
+
+Shows a floating menu at a configurable position (default: cursor position). Returns the 0-based index of the selected item, or `-1` when canceled.
+
+```javascript
+const index = await window.showMenuPicker(
+  ['Rename', 'Delete', 'Copy Path'],
+  { title: 'File actions' }
+)
+```
+
+---
+
+### showPickerDialog
+
+```typescript
+showPickerDialog(items: string[], title: string, token?: CancellationToken): Promise<string[] | undefined>
+showPickerDialog<T extends QuickPickItem>(items: T[], title: string, token?: CancellationToken): Promise<T[] | undefined>
+```
+
+Shows a multi-select picker dialog at the center of the screen. Returns selected items or `undefined`.
+
+---
+
+## Output Channels
+
+### createOutputChannel
+
+```typescript
+createOutputChannel(name: string): OutputChannel
+```
+
+Creates a named output channel. The name must be unique. Returns an `OutputChannel` object.
+
+<Tip>
+  Show the output channel to the user with `window.showOutputChannel(name)`.
+</Tip>
+
+```javascript
+const channel = window.createOutputChannel('My Extension')
+channel.appendLine('Extension activated.')
+context.subscriptions.push(channel)
+```
+
+The `OutputChannel` interface:
+
+<Expandable title="OutputChannel methods">
+  <ResponseField name="name" type="string">
+    The unique name of the channel.
+  </ResponseField>
+  <ResponseField name="append(value: string): void" type="method">
+    Appends text without a trailing newline.
+  </ResponseField>
+  <ResponseField name="appendLine(value: string): void" type="method">
+    Appends text followed by a newline.
+  </ResponseField>
+  <ResponseField name="clear(): void" type="method">
+    Clears all content from the channel.
+  </ResponseField>
+  <ResponseField name="show(preserveFocus?: boolean): void" type="method">
+    Reveals the channel in the editor.
+  </ResponseField>
+  <ResponseField name="dispose(): void" type="method">
+    Disposes the channel and removes it from the registry.
+  </ResponseField>
+</Expandable>
+
+---
+
+### showOutputChannel
+
+```typescript
+showOutputChannel(name: string, cmd?: string, preserveFocus?: boolean): void
+```
+
+Reveals the buffer for a previously created output channel. `cmd` controls the split command (defaults to the `workspace.openOutputCommand` setting, typically `'vs'`).
+
+---
+
+## Status Bar
+
+### createStatusBarItem
+
+```typescript
+createStatusBarItem(priority?: number, option?: StatusItemOption): StatusBarItem
+```
+
+Creates a status bar item that contributes to `g:coc_status`. Items with higher `priority` appear to the right.
+
+`StatusItemOption`:
+
+<Expandable title="StatusItemOption">
+  <ResponseField name="progress" type="boolean">
+    When `true`, the item shows a spinning progress indicator.
+  </ResponseField>
+</Expandable>
+
+```javascript
+const statusItem = window.createStatusBarItem(0, { progress: false })
+statusItem.text = 'MyExt: ready'
+statusItem.show()
+context.subscriptions.push(statusItem)
+```
+
+---
+
+## Terminals
+
+### createTerminal
+
+```typescript
+createTerminal(opts: TerminalOptions): Promise<TerminalModel>
+```
+
+Creates a new terminal buffer. `TerminalOptions` includes `name`, `shellPath`, `shellArgs`, `cwd`, and `env`.
+
+```javascript
+const terminal = await window.createTerminal({
+  name: 'My Extension Terminal',
+  shellPath: '/bin/bash',
+  cwd: workspace.root,
+})
+terminal.show()
+```
+
+---
+
+### runTerminalCommand
+
+```typescript
+runTerminalCommand(cmd: string, cwd?: string, keepfocus?: boolean): Promise<TerminalResult>
+```
+
+Runs a shell command in a terminal buffer and returns a `TerminalResult` with `success` and `bufnr`.
+
+---
+
+### openTerminal
+
+```typescript
+openTerminal(cmd: string, opts?: OpenTerminalOption): Promise<number>
+```
+
+Opens a terminal and runs `cmd` in it. Returns the buffer number.
+
+---
+
+## Progress
+
+### withProgress
+
+```typescript
+withProgress<R>(
+  options: ProgressOptions,
+  task: (progress: Progress, token: CancellationToken) => Thenable<R>
+): Promise<R>
+```
+
+Shows a progress indicator while `task` is running. The `task` receives a `Progress` object and a cancellation token.
+
+`ProgressOptions`:
+
+<Expandable title="ProgressOptions">
+  <ResponseField name="title" type="string">
+    Title shown in the progress notification.
+  </ResponseField>
+  <ResponseField name="cancellable" type="boolean">
+    When `true`, a cancel button is shown.
+  </ResponseField>
+</Expandable>
+
+```javascript
+await window.withProgress(
+  { title: 'Indexing files…', cancellable: true },
+  async (progress, token) => {
+    for (let i = 0; i < files.length; i++) {
+      if (token.isCancellationRequested) break
+      await indexFile(files[i])
+      progress.report({ message: `${i + 1}/${files.length}`, increment: 100 / files.length })
+    }
+  }
+)
+```
+
+---
+
+## Cursor & Selection
+
+### getCursorPosition
+
+```typescript
+getCursorPosition(): Promise<Position>
+```
+
+Returns the current cursor position as an LSP `Position` (0-based line and character).
+
+---
+
+### moveTo
+
+```typescript
+moveTo(position: Position): Promise<void>
+```
+
+Moves the cursor to the given LSP position.
+
+---
+
+### getSelectedRange
+
+```typescript
+getSelectedRange(mode: string): Promise<Range | null>
+```
+
+Returns the visual selection range for the given mode string (e.g., `'v'`, `'V'`, `'\x16'`).
+
+---
+
+### selectRange
+
+```typescript
+selectRange(range: Range): Promise<void>
+```
+
+Programmatically selects the given range in the current buffer.
+
+---
+
+### getOffset
+
+```typescript
+getOffset(): Promise<number>
+```
+
+Returns the current cursor's byte offset in the document.
+
+---
+
+### getCursorScreenPosition
+
+```typescript
+getCursorScreenPosition(): Promise<ScreenPosition>
+```
+
+Returns the cursor's screen position as `{ row, col }` (both 0-based, relative to the editor area).
+
+---
+
+## Highlights
+
+### diffHighlights
+
+```typescript
+diffHighlights(
+  bufnr: number,
+  ns: string,
+  items: HighlightItem[],
+  region?: [number, number],
+  token?: CancellationToken
+): Promise<HighlightDiff | null>
+```
+
+Computes the diff between `items` and the highlights currently applied in buffer `bufnr` under namespace `ns`. Returns `null` when the buffer is not loaded.
+
+---
+
+### applyDiffHighlights
+
+```typescript
+applyDiffHighlights(
+  bufnr: number,
+  ns: string,
+  priority: number,
+  diff: HighlightDiff,
+  notify?: boolean
+): Promise<void>
+```
+
+Applies a previously computed `HighlightDiff` to the buffer.
+
+---
+
+## Tree Views
+
+### createTreeView
+
+```typescript
+createTreeView<T>(viewId: string, options: TreeViewOptions<T>): TreeView<T>
+```
+
+Creates a tree view panel with the given ID and data provider options.
+
+---
+
+## Float Windows
+
+### createFloatFactory
+
+```typescript
+createFloatFactory(conf: FloatWinConfig): FloatFactory
+```
+
+Creates a `FloatFactory` configured with user preferences merged from `floatFactory.floatConfig`. Use it to show float windows with custom content.
+
+---
+
+## Echo
+
+### echoLines
+
+```typescript
+echoLines(lines: string[], truncate?: boolean): Promise<void>
+```
+
+Echoes multiple lines at the bottom of Vim. When `truncate` is `true`, the output is truncated to avoid the "press enter to continue" prompt.
+
+---
+
+## Full example
+
+```javascript
+const { window, workspace } = require('coc.nvim')
+
+async function activate(context) {
+  const channel = window.createOutputChannel('myext')
+  channel.appendLine('Activated.')
+
+  const statusItem = window.createStatusBarItem(1)
+  statusItem.text = 'myext'
+  statusItem.show()
+
+  context.subscriptions.push(
+    channel,
+    statusItem,
+    window.onDidChangeActiveTextEditor(editor => {
+      if (editor) {
+        statusItem.text = `myext: ${editor.document.languageId}`
+      }
+    })
+  )
+}
+```

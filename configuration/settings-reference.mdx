@@ -1,0 +1,148 @@
+---
+title: 'Settings reference'
+description: 'Reference for coc.nvim built-in configuration settings, organized by feature area.'
+---
+
+All settings are configured in `coc-settings.json` (open with `:CocConfig`). Install `coc-json` for schema-backed completion and validation.
+
+<Info>
+Settings contributed by extensions are not listed here. Refer to each extension's documentation for its own settings.
+</Info>
+
+<AccordionGroup>
+  <Accordion title="Completion (suggest.*)">
+    Settings that control how and when the completion popup appears.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `suggest.autoTrigger` | `string` | `"always"` | When to trigger completion: `"always"`, `"trigger"` (only on trigger characters), or `"none"`. |
+    | `suggest.noselect` | `boolean` | `false` | When `true`, Vim does not pre-select the first item in the popup menu. |
+    | `suggest.maxCompleteItemCount` | `number` | `256` | Maximum number of completion items shown in the popup. |
+    | `suggest.timeout` | `number` | `5000` | Timeout for completion requests, in milliseconds. |
+    | `suggest.triggerCompletionWait` | `number` | `0` | Milliseconds to wait after a text change before triggering completion. Completion cancels if text changes again during the wait. |
+    | `suggest.minTriggerInputLength` | `number` | `1` | Minimum number of characters typed before completion triggers. |
+    | `suggest.enableFloat` | `boolean` | `true` | Show a floating documentation window alongside the popup menu. |
+    | `suggest.enablePreselect` | `boolean` | `true` | Pre-select the best match when `suggest.noselect` is `false`. |
+    | `suggest.defaultSortMethod` | `string` | `"length"` | Default sort order when the trigger input is empty: `"length"`, `"alphabetical"`, or `"none"`. |
+    | `suggest.localityBonus` | `boolean` | `true` | Boost suggestions that appear closer to the cursor. |
+    | `suggest.filterGraceful` | `boolean` | `true` | Account for small typos when filtering and sorting suggestions. |
+    | `suggest.snippetsSupport` | `boolean` | `true` | Enable snippet expansion for completion items. |
+    | `suggest.insertMode` | `string` | `"replace"` | Whether completing a word overwrites the existing text (`"replace"`) or inserts before it (`"insert"`). |
+    | `suggest.triggerAfterInsertEnter` | `boolean` | `false` | Trigger completion immediately after entering insert mode. Requires `suggest.autoTrigger` to be `"always"`. |
+    | `suggest.labelMaxLength` | `number` | `200` | Maximum display length of a completion item label. |
+    | `suggest.removeDuplicateItems` | `boolean` | `false` | Remove items with duplicate words across all sources (snippets excluded). |
+    | `suggest.selection` | `string` | `"first"` | How suggestions are pre-selected when the list appears. |
+    | `suggest.virtualText` | `boolean` | `false` | Show a virtual text preview of the selected item after the cursor. |
+    | `suggest.acceptSuggestionOnCommitCharacter` | `boolean` | `false` | Accept the selected suggestion when a commit character (e.g., `;`) is typed. |
+  </Accordion>
+
+  <Accordion title="Diagnostics (diagnostic.*)">
+    Settings that control how errors, warnings, and hints from language servers are displayed.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `diagnostic.enable` | `boolean` | `true` | Enable diagnostic display. Set to `false` to turn off all diagnostic rendering. |
+    | `diagnostic.displayByAle` | `boolean` | `false` | Delegate diagnostic display to ALE or another compatible provider instead of coc.nvim's built-in handler. Requires restart to take effect. |
+    | `diagnostic.errorSign` | `string` | `">>"` | Sign column text for error diagnostics. |
+    | `diagnostic.warningSign` | `string` | `"⚠"` | Sign column text for warning diagnostics. |
+    | `diagnostic.infoSign` | `string` | `">>"` | Sign column text for info diagnostics. |
+    | `diagnostic.hintSign` | `string` | `">>"` | Sign column text for hint diagnostics. |
+    | `diagnostic.signPriority` | `number` | `10` | Priority of diagnostic signs in the sign column. |
+    | `diagnostic.enableSign` | `boolean` | `true` | Show signs in the sign column for diagnostics. |
+    | `diagnostic.enableHighlightLineNumber` | `boolean` | `true` | Highlight line numbers for diagnostics (Neovim only). |
+    | `diagnostic.level` | `string` | `"hint"` | Minimum severity level to display: `"hint"`, `"information"`, `"warning"`, or `"error"`. |
+    | `diagnostic.messageTarget` | `string` | `"float"` | Where to display the diagnostic message: `"float"`, `"echo"`. |
+    | `diagnostic.messageDelay` | `number` | `200` | Milliseconds to wait before showing the diagnostic message. |
+    | `diagnostic.format` | `string` | `"%message (%source%code)"` | Template for the diagnostic message. Available parts: `source`, `code`, `severity`, `message`. |
+    | `diagnostic.autoRefresh` | `boolean` | `true` | Refresh diagnostics automatically. When `false`, use the `diagnosticRefresh` action manually. |
+    | `diagnostic.refreshOnInsertMode` | `boolean` | `false` | Refresh diagnostics while in insert mode. |
+    | `diagnostic.virtualText` | `boolean` | `false` | Show diagnostics as virtual text. |
+    | `diagnostic.virtualTextPrefix` | `string` | `" "` | Prefix added before virtual text diagnostics. |
+    | `diagnostic.virtualTextFormat` | `string` | `"%message"` | Template for virtual text. Available parts: `source`, `code`, `severity`, `message`. |
+    | `diagnostic.virtualTextCurrentLineOnly` | `boolean` | `true` | Only show virtual text for the current cursor line. |
+    | `diagnostic.checkCurrentLine` | `boolean` | `false` | When no diagnostic exists at the cursor position, show all diagnostics on the current line. |
+    | `diagnostic.showUnused` | `boolean` | `true` | Show diagnostics tagged as `unused`. |
+    | `diagnostic.showDeprecated` | `boolean` | `true` | Show diagnostics tagged as `deprecated`. |
+    | `diagnostic.highlightPriority` | `number` | `4096` | Priority for diagnostic highlight matches. |
+    | `diagnostic.highlightLimit` | `number` | `1000` | Maximum number of highlighted diagnostic ranges. |
+    | `diagnostic.locationlistUpdate` | `boolean` | `true` | Update the location list when diagnostics change (only when opened via `:CocDiagnostics`). |
+  </Accordion>
+
+  <Accordion title="Hover (hover.*)">
+    Settings that control the hover documentation float window.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `hover.target` | `string` | `"float"` | Where to display hover information: `"float"`, `"echo"`, or `"preview"`. |
+    | `hover.autoHide` | `boolean` | `true` | Automatically close the hover float window when the cursor moves or insert mode begins. |
+    | `hover.previewMaxHeight` | `number` | `12` | Maximum height of the preview window when `hover.target` is `"preview"`. |
+    | `hover.floatConfig` | `object` | `null` | Float window style options for hover. See the float configuration reference for available properties. |
+  </Accordion>
+
+  <Accordion title="Signature help (signature.*)">
+    Settings that control the signature help float shown when typing function arguments.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `signature.enable` | `boolean` | `true` | Show signature help when a trigger character is typed. |
+    | `signature.target` | `string` | `"float"` | Where to display signature help: `"float"` or `"echo"`. |
+    | `signature.triggerSignatureWait` | `number` | `500` | Milliseconds to wait before displaying signature help, in milliseconds. |
+    | `signature.hideOnTextChange` | `boolean` | `false` | Hide the signature float when text changes in insert mode. |
+    | `signature.preferShownAbove` | `boolean` | `true` | Show the signature float above the cursor when space allows. Requires restart on change. |
+    | `signature.floatConfig` | `object` | `null` | Float window style options for signature help. |
+  </Accordion>
+
+  <Accordion title="Extensions (extensions.*)">
+    Settings that control extension management and auto-update behavior.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `extensions.updateCheck` | `string` | `"never"` | How often to check for extension updates: `"daily"`, `"weekly"`, or `"never"`. |
+    | `extensions.silentAutoupdate` | `boolean` | `true` | When `true`, auto-updates run silently without opening a status split window. |
+    | `extensions.updateUIInTab` | `boolean` | `false` | Open the `CocUpdate` UI in a new tab. |
+    | `extensions.recommendations` | `string[]` | `[]` | Extensions recommended for the current project. Only effective in workspace configuration. |
+  </Accordion>
+
+  <Accordion title="Inlay hints (inlayHint.*)">
+    Settings for inline type and parameter hints provided by language servers.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `inlayHint.enable` | `boolean` | `true` | Enable inlay hint support. |
+    | `inlayHint.enableParameter` | `boolean` | `true` | Show inlay hints for function parameters. |
+    | `inlayHint.display` | `boolean` | `true` | Toggle inlay hint display. Use `:CocCommand document.toggleInlayHint` to toggle interactively. |
+    | `inlayHint.position` | `string` | `"inline"` | Position of inlay hints: `"inline"` or `"eol"` (end of line). |
+    | `inlayHint.refreshOnInsertMode` | `boolean` | `false` | Refresh inlay hints while in insert mode. |
+  </Accordion>
+
+  <Accordion title="Preferences (coc.preferences.*)">
+    General behavioral settings for coc.nvim.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `coc.preferences.formatOnSave` | `boolean` | `false` | Format the buffer automatically on save. |
+    | `coc.preferences.formatOnSaveTimeout` | `number` | `200` | Milliseconds before the format-on-save command times out. |
+    | `coc.preferences.formatOnType` | `boolean` | `false` | Format while typing (on-type formatting). |
+    | `coc.preferences.jumpCommand` | `string` | `"edit"` | Vim command used for location jumps such as go-to-definition. Can be a custom command that accepts a file path. |
+    | `coc.preferences.maxFileSize` | `string` | `"10MB"` | Maximum file size coc.nvim will process. |
+    | `coc.preferences.messageLevel` | `string` | `"more"` | Minimum level for echoed messages: `"more"`, `"warning"`, or `"error"`. |
+    | `coc.preferences.enableLinkedEditing` | `boolean` | `false` | Enable linked editing support. |
+    | `coc.preferences.bracketEnterImprove` | `boolean` | `true` | Improve Enter inside brackets by inserting a blank line and positioning the cursor. Works with `coc#on_enter()`. |
+    | `coc.preferences.useQuickfixForLocations` | `boolean` | `false` | Use Vim's quickfix list for jump locations instead of the location list. Requires restart. |
+    | `coc.preferences.renameFillCurrent` | `boolean` | `true` | Pre-populate the rename input with the current symbol name. |
+    | `coc.preferences.currentFunctionSymbolAutoUpdate` | `boolean` | `false` | Automatically update `b:coc_current_function` on `CursorMove`. |
+  </Accordion>
+
+  <Accordion title="Workspace (workspace.*)">
+    Settings that control how coc.nvim resolves workspace folders.
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `workspace.rootPatterns` | `string[]` | `[".git", ".hg", ".projections.json"]` | File/directory names used to find the workspace root, resolved from the opened file upward. |
+    | `workspace.ignoredFolders` | `string[]` | `["$HOME"]` | Folders that should never be treated as workspace roots. Supports environment variables and minimatch patterns. |
+    | `workspace.workspaceFolderFallbackCwd` | `boolean` | `true` | Use Vim's cwd as the workspace folder when no root pattern matches. |
+    | `workspace.workspaceFolderCheckCwd` | `boolean` | `true` | Check Vim's cwd first when matching root patterns. |
+    | `workspace.openResourceCommand` | `string` | `"tab drop"` | Vim command used to open files that are not already loaded. |
+    | `workspace.removeEmptyWorkspaceFolder` | `boolean` | `false` | Automatically remove workspace folders with no associated buffers. |
+  </Accordion>
+</AccordionGroup>

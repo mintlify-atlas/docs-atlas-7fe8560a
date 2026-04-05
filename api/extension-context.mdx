@@ -1,0 +1,184 @@
+---
+title: "Extension Context"
+description: "The ExtensionContext object passed to your activate function — manage subscriptions, storage, logging, and configuration."
+---
+
+The `ExtensionContext` is passed as the first argument to your extension's `activate` function. It provides everything your extension needs to register functionality, persist state, and clean up resources when deactivated.
+
+```javascript
+const { window, commands } = require('coc.nvim')
+
+exports.activate = async (context) => {
+  // Register a command and add to subscriptions
+  const disposable = commands.registerCommand('myext.sayHello', () => {
+    window.showInformationMessage('Hello from myext!')
+  })
+  context.subscriptions.push(disposable)
+}
+
+exports.deactivate = () => {
+  // Called when the extension is disabled or coc.nvim shuts down.
+  // Subscriptions are disposed automatically — put manual cleanup here.
+}
+```
+
+<Note>
+  Every `Disposable` pushed to `context.subscriptions` is automatically disposed when the extension is deactivated. Always push your registrations there.
+</Note>
+
+---
+
+## Properties
+
+<ParamField path="subscriptions" type="Disposable[]">
+  An array of disposables. Anything pushed here is disposed automatically when the extension is deactivated. This is the primary cleanup mechanism — push every registration result here.
+
+  ```javascript
+  context.subscriptions.push(
+    commands.registerCommand('myext.cmd', handler),
+    languages.registerHoverProvider(['javascript'], hoverProvider),
+    workspace.onDidOpenTextDocument(onOpen)
+  )
+  ```
+</ParamField>
+
+<ParamField path="extensionPath" type="string">
+  The absolute filesystem path to the extension's root directory — the folder that contains `package.json`. Use this to load bundled assets or binaries shipped with the extension.
+
+  ```javascript
+  const path = require('path')
+  const binPath = path.join(context.extensionPath, 'bin', 'mytool')
+  ```
+</ParamField>
+
+<ParamField path="storagePath" type="string">
+  A filesystem path for persistent, extension-specific storage. The directory is created automatically if it does not exist. Use this for caches, databases, or any files that should survive extension reloads.
+
+  ```javascript
+  const path = require('path')
+  const cacheFile = path.join(context.storagePath, 'cache.json')
+  ```
+</ParamField>
+
+<ParamField path="logger" type="Logger">
+  An extension-specific logger that writes to the coc.nvim log file. Use `:CocOpenLog` in Vim to inspect the log. Prefer `context.logger` over `console` for structured log levels.
+
+  ```javascript
+  context.logger.info('Extension activated')
+  context.logger.warn('Configuration missing, using defaults')
+  context.logger.error('Failed to start server', err)
+  ```
+
+  Available methods: `debug`, `info`, `warn`, `error`.
+</ParamField>
+
+<ParamField path="workspaceState" type="Memento">
+  Key-value storage scoped to the current workspace. Values do not persist when the workspace changes.
+
+  ```javascript
+  // Read a value (with optional default)
+  const count = context.workspaceState.get('runCount', 0)
+
+  // Write a value
+  await context.workspaceState.update('runCount', count + 1)
+  ```
+</ParamField>
+
+<ParamField path="globalState" type="Memento">
+  Key-value storage that persists across all workspaces. Use this for user preferences, tokens, or any data that should survive workspace switches.
+
+  ```javascript
+  // Read a persisted token
+  const token = context.globalState.get('apiToken')
+
+  // Persist a value
+  await context.globalState.update('apiToken', newToken)
+  ```
+</ParamField>
+
+---
+
+## Extension Lifecycle
+
+A coc.nvim extension is a CommonJS module loaded by the NodeJS `vm` module inside an isolated context. The module must export an `activate` function and may export an optional `deactivate` function.
+
+<AccordionGroup>
+  <Accordion title="activate(context)">
+    Called once when the extension is activated. Receives the `ExtensionContext`. Register all commands, providers, and event listeners here and push each returned `Disposable` to `context.subscriptions`.
+
+    The return value of `activate` is exposed as the extension's public API — other extensions can access it via `extensions.getExtensionApi(id)`.
+  </Accordion>
+
+  <Accordion title="deactivate()">
+    Optional. Called when the extension is disabled or coc.nvim is shutting down. All `context.subscriptions` are disposed automatically after this runs. Use it only for cleanup that cannot be expressed as a `Disposable` (e.g., stopping a child process synchronously).
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Reading Configuration
+
+Use `workspace.getConfiguration` to read settings declared in your extension's `contributes.configuration` block.
+
+```javascript
+const { workspace } = require('coc.nvim')
+
+exports.activate = async (context) => {
+  const config = workspace.getConfiguration('myext')
+
+  const isEnabled = config.get('enable', true)
+  const timeout = config.get('timeout', 5000)
+
+  context.logger.info(`myext enabled=${isEnabled} timeout=${timeout}`)
+}
+```
+
+<Tip>
+  Call `workspace.getConfiguration` inside handlers rather than caching it at activation time so your extension always sees the latest settings.
+</Tip>
+
+---
+
+## Persisting State with Memento
+
+Both `workspaceState` and `globalState` implement the same `Memento` interface.
+
+<ParamField path="get(key, defaultValue?)" type="T | undefined">
+  Returns the stored value for `key`, or `defaultValue` if nothing is stored.
+</ParamField>
+
+<ParamField path="update(key, value)" type="Promise<void>">
+  Stores `value` for `key`. Pass `undefined` to delete the key.
+</ParamField>
+
+```javascript
+exports.activate = async (context) => {
+  // Increment a persistent counter across all workspaces
+  const runs = context.globalState.get('totalRuns', 0)
+  await context.globalState.update('totalRuns', runs + 1)
+  context.logger.info(`Extension has been activated ${runs + 1} time(s)`)
+}
+```
+
+---
+
+## Using context.logger
+
+`context.logger` is preferred over `console` because it tags messages with your extension name and respects the configured log level.
+
+```javascript
+exports.activate = async (context) => {
+  const { logger } = context
+
+  logger.debug('Debug-level detail, omitted unless log level is trace/debug')
+  logger.info('Informational message')
+  logger.warn('Something unexpected but recoverable')
+  logger.error('An error occurred', new Error('details'))
+}
+```
+
+Set `$NVIM_COC_LOG_LEVEL=trace` in your shell or vimrc to see all log levels, and `$NVIM_COC_LOG_FILE=/tmp/coc.log` to write to a fixed path. Then tail the file while reproducing your issue.
+
+<Note>
+  `console.log` also works inside extensions and redirects to the coc.nvim log file, but `context.logger` produces better-labelled output.
+</Note>

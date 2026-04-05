@@ -1,0 +1,109 @@
+{
+  "projectType": "framework",
+  "projectName": "coc.nvim",
+  "projectDescription": "A NodeJS extension host for Vim and Neovim that brings full LSP 3.17 support and a VSCode-compatible extension ecosystem to your editor.",
+  "theme": "aspen",
+  "primaryColor": "#848c8e",
+  "lightColor": "#11161e",
+  "darkColor": "#cfd0d2",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/language-servers",
+              "configuration/settings-reference"
+            ]
+          },
+          {
+            "group": "LSP Features",
+            "pages": [
+              "features/completion",
+              "features/diagnostics",
+              "features/code-actions",
+              "features/navigation",
+              "features/snippets"
+            ]
+          },
+          {
+            "group": "Extensions",
+            "pages": [
+              "extensions/using-extensions",
+              "extensions/creating-extensions",
+              "extensions/publishing"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/key-mappings",
+              "guides/statusline",
+              "guides/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core Modules",
+            "pages": [
+              "api/workspace",
+              "api/window",
+              "api/languages",
+              "api/commands",
+              "api/events"
+            ]
+          },
+          {
+            "group": "Extension API",
+            "pages": [
+              "api/extension-context",
+              "api/providers",
+              "api/diagnostics",
+              "api/list"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Full LSP 3.17 protocol support including completion, diagnostics, code actions, hover, rename, and semantic tokens",
+    "VSCode-compatible extension ecosystem — install and run coc extensions via :CocInstall",
+    "Runs in a separate NodeJS process to keep Vim/Neovim fast and responsive",
+    "Configurable via JSON settings file (coc-settings.json) like VS Code",
+    "Snippet support with TextMate-compatible snippet expansion",
+    "Built-in language client for connecting to any LSP-compliant language server",
+    "CocList — a fuzzy-finder UI for diagnostics, symbols, commands, and more",
+    "Tree view, inline completion, inlay hints, semantic highlighting, and call hierarchy"
+  ],
+  "publicApiSurface": [
+    "workspace — document management, configuration, file watchers, workspace folders",
+    "window — UI utilities: messages, quickpick, input, output channels, status bar",
+    "languages — register LSP providers (completion, hover, definition, etc.)",
+    "commands — register and execute Vim/coc commands",
+    "events — subscribe to editor lifecycle events",
+    "extensions — manage and interact with installed coc extensions",
+    "diagnosticManager — programmatic access to diagnostic collections",
+    "snippetManager — trigger and manage snippet expansion",
+    "listManager — register custom CocList sources",
+    "LanguageClient — connect to external language servers via LSP",
+    "BasicList — base class for creating custom CocList entries",
+    "FloatFactory — create floating windows/popups",
+    "sources — register custom completion sources"
+  ]
+}

@@ -1,0 +1,164 @@
+---
+title: "Installation"
+description: "Install coc.nvim using your preferred Vim plugin manager or native Vim packages, alongside Node.js."
+---
+
+<Steps>
+
+  <Step title="Install Node.js >= 16.18.0">
+
+    coc.nvim requires Node.js to run its extension host process.
+
+    <Note>
+      Node.js **16.18.0** or newer is required. Older versions are not supported.
+    </Note>
+
+    The quickest way to install the latest LTS release:
+
+    ```bash
+    curl -sL install-node.vercel.app/lts | bash
+    ```
+
+    Alternatively, download an installer from the [official Node.js website](https://nodejs.org/en/download/) or use a version manager such as `nvm` or `fnm`.
+
+    Verify the installed version:
+
+    ```bash
+    node --version
+    ```
+
+  </Step>
+
+  <Step title="Install coc.nvim">
+
+    Use the **`release` branch** — it ships pre-compiled JavaScript so no build step is needed.
+
+    <Warning>
+      If you choose the `master` (source) branch instead of `release`, you must
+      run `npm ci` in the plugin directory after installation to compile the
+      TypeScript source. The `release` branch is recommended for most users.
+    </Warning>
+
+    <Tabs>
+      <Tab title="vim-plug">
+        Add the following to your `.vimrc` or `init.vim`:
+
+        ```vim
+        " Use release branch (recommended)
+        Plug 'neoclide/coc.nvim', {'branch': 'release'}
+
+        " Or build from source code by using npm
+        " Plug 'neoclide/coc.nvim', {'branch': 'master', 'do': 'npm ci'}
+        ```
+
+        Then restart Vim and run:
+
+        ```vim
+        :PlugInstall
+        ```
+      </Tab>
+
+      <Tab title="lazy.nvim">
+        Add the following to your lazy.nvim plugin spec:
+
+        ```lua
+        {
+          'neoclide/coc.nvim',
+          branch = 'release',
+        }
+        ```
+
+        Then restart Neovim. lazy.nvim will install and configure the plugin automatically on the next startup (or run `:Lazy sync`).
+      </Tab>
+
+      <Tab title="packer.nvim">
+        Add the following inside your `packer.startup` block:
+
+        ```lua
+        use {'neoclide/coc.nvim', branch = 'release'}
+        ```
+
+        Then restart Neovim and run:
+
+        ```vim
+        :PackerInstall
+        ```
+      </Tab>
+
+      <Tab title="Native packages (Linux / macOS)">
+        Vim and Neovim support loading plugins from a `pack/` directory without
+        any plugin manager. Run the script below in your shell:
+
+        ```sh
+        #!/bin/sh
+
+        # For Vim
+        mkdir -p ~/.vim/pack/coc/start
+        cd ~/.vim/pack/coc/start
+        curl --fail -L https://github.com/neoclide/coc.nvim/archive/release.tar.gz | tar xzfv -
+        vim -c 'helptags ~/.vim/pack/coc/start/doc|q'
+
+        # For Neovim
+        mkdir -p ~/.local/share/nvim/site/pack/coc/start
+        cd ~/.local/share/nvim/site/pack/coc/start
+        curl --fail -L https://github.com/neoclide/coc.nvim/archive/release.tar.gz | tar xzfv -
+        nvim -c 'helptags ~/.local/share/nvim/site/pack/coc/start|q'
+        ```
+
+        <Warning>
+          If you clone from source instead of using the release tarball above,
+          you must run `npm ci` inside the plugin directory to compile the
+          TypeScript source before coc.nvim will work.
+        </Warning>
+      </Tab>
+    </Tabs>
+
+  </Step>
+
+  <Step title="Verify the installation">
+
+    After restarting Vim/Neovim, check that coc.nvim started successfully:
+
+    ```vim
+    :CocInfo
+    ```
+
+    This prints the coc.nvim version, Node.js version, log file path, and the
+    status of any running services. All entries should show no errors.
+
+    For Neovim users, the built-in health checker provides additional diagnostics:
+
+    ```vim
+    :checkhealth
+    ```
+
+    If a service fails to start, open the coc.nvim log for details:
+
+    ```vim
+    :CocOpenLog
+    ```
+
+  </Step>
+
+  <Step title="Install Watchman (optional)">
+
+    [Watchman](https://facebook.github.io/watchman/) provides efficient file
+    system event watching. coc.nvim uses it to notify language servers of file
+    changes across your workspace.
+
+    <Tip>
+      Watchman is optional. coc.nvim falls back silently when it is not
+      available, but installing it can improve performance for large projects.
+    </Tip>
+
+    Install Watchman through your system package manager (e.g. `brew install watchman` on macOS) and ensure the `watchman` binary is on your `$PATH`. coc.nvim detects it automatically.
+
+    To inspect Watchman's output channel once it is running:
+
+    ```vim
+    :CocCommand workspace.showOutput watchman
+    ```
+
+  </Step>
+
+</Steps>

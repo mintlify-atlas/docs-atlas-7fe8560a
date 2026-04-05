@@ -1,0 +1,124 @@
+---
+title: "Using Extensions"
+description: "Install, manage, and configure coc.nvim extensions to add language support and editor features."
+---
+
+Extensions are the primary way to add language support and editor features to coc.nvim. Unlike raw [language server configuration](/configuration/language-servers), extensions can contribute JSON schemas, commands, and middleware — and can use the full coc.nvim Node.js API to provide richer integrations.
+
+Extensions are loaded from the `extensions` folder inside your coc.nvim data home directory, and from any matching folders in your `runtimepath`.
+
+## Installing extensions
+
+Use `:CocInstall` to install extensions directly from npm:
+
+```vim
+:CocInstall coc-json coc-tsserver
+```
+
+Multiple extensions can be installed in a single command by separating names with spaces.
+
+<Note>
+  To use a package manager other than npm (such as `yarn` or `pnpm`), set `npm.binPath` in your `coc-settings.json`.
+</Note>
+
+## Popular extensions
+
+<CardGroup cols={3}>
+  <Card title="coc-tsserver" icon="file-code">
+    TypeScript and JavaScript language support via tsserver.
+  </Card>
+  <Card title="coc-pyright" icon="file-code">
+    Python language support via the Pyright type checker.
+  </Card>
+  <Card title="coc-json" icon="braces">
+    JSON language support with schema validation.
+  </Card>
+  <Card title="coc-html" icon="code">
+    HTML language support including IntelliSense and formatting.
+  </Card>
+  <Card title="coc-css" icon="paintbrush">
+    CSS, SCSS, and Less language support.
+  </Card>
+  <Card title="coc-go" icon="file-code">
+    Go language support via `gopls`.
+  </Card>
+  <Card title="coc-rust-analyzer" icon="file-code">
+    Rust language support via `rust-analyzer`.
+  </Card>
+  <Card title="coc-snippets" icon="layers">
+    Snippet support with UltiSnips and VS Code snippet compatibility.
+  </Card>
+  <Card title="coc-pairs" icon="chevrons-right">
+    Automatic bracket and quote pair insertion.
+  </Card>
+</CardGroup>
+
+## Uninstalling extensions
+
+```vim
+:CocUninstall coc-tsserver
+```
+
+## Updating extensions
+
+<Tabs>
+  <Tab title="Async">
+    ```vim
+    :CocUpdate
+    ```
+    Updates all installed extensions in the background.
+  </Tab>
+  <Tab title="Sync">
+    ```vim
+    :CocUpdateSync
+    ```
+    Updates all installed extensions and waits for completion before returning.
+  </Tab>
+</Tabs>
+
+## Managing extensions
+
+Open the extensions list with `:CocList extensions`. From this list you can:
+
+- View the status of each installed extension (`activated`, `loaded`, `disabled`, or `unknown`)
+- Disable an extension without uninstalling it by selecting it and choosing the disable action
+- Re-enable a disabled extension the same way
+- Uninstall extensions directly from the list
+
+```vim
+:CocList extensions
+```
+
+<Tip>
+  Disabling an extension through `:CocList extensions` is the recommended way to temporarily turn off an extension without losing it. Disabled extensions remain installed but are not activated on startup.
+</Tip>
+
+## Auto-installing extensions on startup
+
+Use `g:coc_global_extensions` in your vimrc to declare extensions that coc.nvim should install automatically if they are missing:
+
+```vim
+let g:coc_global_extensions = ['coc-json', 'coc-tsserver']
+```
+
+This is useful for keeping your configuration reproducible across machines.
+
+## Using a custom registry
+
+To install extensions from a private or custom npm registry, add a `coc.nvim:registry` entry to your `~/.npmrc`:
+
+```ini
+coc.nvim:registry=https://registry.mycompany.org/
+```
+
+This only affects packages installed by coc.nvim and does not change your global npm registry.
+
+## Disabling extensions without uninstalling
+
+You can disable an extension without removing it from disk using `:CocList extensions`. Navigate to the extension and use the disable action from the prompt. The extension will remain installed but will not be activated until you re-enable it.
+
+To suppress all extension loading entirely, set the following in your vimrc before coc.nvim loads:
+
+```vim
+let $COC_NO_PLUGINS = '1'
+```

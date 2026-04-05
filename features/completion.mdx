@@ -1,0 +1,248 @@
+---
+title: "Completion"
+description: "Intelligent code completion powered by LSP and built-in sources, with a fully customizable popup menu."
+---
+
+Coc.nvim replaces Vim's built-in completion with a VSCode-style popup menu. Completion triggers automatically as you type and can also be invoked manually. Snippet expansion and additional text edits are applied after you confirm a completion item.
+
+<Note>
+  `'completeopt'` is not used by coc.nvim. The built-in popupmenu APIs do not apply either — use the `coc#pum#*` functions described below instead.
+</Note>
+
+## How completion works
+
+Completion is automatically triggered after text is inserted in a buffer attached to coc.nvim. When triggered, coc.nvim collects candidates from all active sources and displays them in a custom popup menu (pum).
+
+Key behaviors:
+
+- The first item is selected by default. Set `"suggest.noselect": true` to disable pre-selection.
+- Snippet expansion and `additionalTextEdits` only apply after confirming with `coc#pum#confirm()`.
+- Completion is paused in insert mode by default when the buffer is hidden.
+
+## The popup menu (pum) API
+
+Coc.nvim exposes a set of Vimscript functions to interact with the completion popup:
+
+| Function | Description |
+|---|---|
+| `coc#pum#visible()` | Returns `1` when the popup menu is open |
+| `coc#pum#next(1)` | Select the next completion item |
+| `coc#pum#prev(1)` | Select the previous completion item |
+| `coc#pum#confirm()` | Confirm the selected item, expanding snippets and applying edits |
+| `coc#pum#cancel()` | Cancel completion and reset the trigger text |
+| `coc#pum#stop()` | Close the popup without cancelling completion |
+| `coc#pum#scroll(1)` | Scroll the popup down |
+| `coc#pum#scroll(0)` | Scroll the popup up |
+| `coc#pum#select(idx, ...)` | Select a specific item by index |
+| `coc#pum#insert()` | Insert the word of the selected item and finish |
+| `coc#pum#info()` | Get information about the current popup state |
+
+## Triggering completion manually
+
+Use `coc#refresh()` to trigger or refresh completion programmatically:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('i', '<c-space>', 'coc#refresh()', { silent = true, expr = true })
+    ```
+  </Tab>
+  <Tab title="Vim / Neovim (Vimscript)">
+    ```vim
+    if has('nvim')
+      inoremap <silent><expr> <c-space> coc#refresh()
+    else
+      inoremap <silent><expr> <c-@> coc#refresh()
+    endif
+    ```
+  </Tab>
+</Tabs>
+
+## Key mapping examples
+
+The following mappings replicate a VSCode-like completion experience. Add them to your `init.lua` or `init.vim`.
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    local opts = { silent = true, noremap = true, expr = true, replace_keycodes = false }
+
+    -- Tab: navigate to next item, or insert a real tab if at line start
+    keyset('i', '<TAB>',
+      'coc#pum#visible() ? coc#pum#next(1) : v:lua.check_back_space() ? "<TAB>" : coc#refresh()',
+      opts)
+
+    -- S-Tab: navigate to previous item
+    keyset('i', '<S-TAB>', [[coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"]], opts)
+
+    -- CR: confirm selected item, or format on enter
+    keyset('i', '<cr>',
+      [[coc#pum#visible() ? coc#pum#confirm() : "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"]],
+      opts)
+
+    -- <c-space>: trigger completion manually
+    keyset('i', '<c-space>', 'coc#refresh()', { silent = true, expr = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    function! CheckBackspace() abort
+      let col = col('.') - 1
+      return !col || getline('.')[col - 1]  =~# '\s'
+    endfunction
+
+    " Tab: navigate or insert real tab
+    inoremap <silent><expr> <TAB>
+          \ coc#pum#visible() ? coc#pum#next(1) :
+          \ CheckBackspace() ? "\<Tab>" :
+          \ coc#refresh()
+
+    " S-Tab: navigate backwards
+    inoremap <expr><S-TAB> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
+
+    " CR: confirm or format on enter
+    inoremap <silent><expr> <CR> coc#pum#visible() ? coc#pum#confirm()
+                                  \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
+
+    " <c-space>: trigger manually (Neovim)
+    inoremap <silent><expr> <c-space> coc#refresh()
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+  Run `:verbose imap <tab>` to verify that `<Tab>` is not already claimed by another plugin before adding these mappings.
+</Tip>
+
+## Default key mappings
+
+When `<Tab>`, `<CR>`, `<C-y>`, and `<S-Tab>` are not mapped by the user, coc.nvim applies these defaults:
+
+| Key | Action |
+|---|---|
+| `<C-n>` | Next item |
+| `<C-p>` | Previous item |
+| `<Down>` | Next item (without word insert) |
+| `<Up>` | Previous item (without word insert) |
+| `<C-e>` | Cancel completion |
+| `<C-y>` | Confirm completion |
+
+## Completion sources
+
+Coc.nvim gathers completion candidates from multiple source types simultaneously:
+
+<CardGroup cols={2}>
+  <Card title="Language server sources" icon="server">
+    Provided by LSP language servers or coc.nvim extensions. These deliver rich completions with documentation, type information, and snippet support.
+  </Card>
+  <Card title="Built-in sources" icon="database">
+    Always available regardless of language server:
+    - **around** — words near the cursor in the current buffer
+    - **buffer** — words from all open buffers
+    - **file** — file path completions
+  </Card>
+</CardGroup>
+
+You can disable built-in sources per buffer:
+
+```vim
+let b:coc_disabled_sources = ['around', 'buffer', 'file']
+```
+
+## Configuration options
+
+Set these in your `coc-settings.json` (open with `:CocConfig`):
+
+<AccordionGroup>
+  <Accordion title="suggest.autoTrigger">
+    Controls when completion triggers automatically.
+
+    - `"always"` (default) — trigger on text insert
+    - `"trigger"` — only trigger on trigger characters defined by the source
+    - `"none"` — disable automatic triggering entirely
+
+    ```json
+    "suggest.autoTrigger": "always"
+    ```
+  </Accordion>
+  <Accordion title="suggest.noselect">
+    When `true`, no item is pre-selected when the popup opens. You must navigate to an item before confirming.
+
+    ```json
+    "suggest.noselect": true
+    ```
+  </Accordion>
+  <Accordion title="suggest.timeout">
+    Maximum time in milliseconds to wait for completion sources to respond.
+
+    ```json
+    "suggest.timeout": 500
+    ```
+  </Accordion>
+  <Accordion title="suggest.maxCompleteItemCount">
+    Maximum number of items shown in the popup menu.
+
+    ```json
+    "suggest.maxCompleteItemCount": 50
+    ```
+  </Accordion>
+  <Accordion title="suggest.snippetIndicator">
+    Character appended to the label of completion items that are snippets. Default: `~`.
+
+    ```json
+    "suggest.snippetIndicator": "~"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Example coc-settings.json
+
+```json
+{
+  "suggest.autoTrigger": "always",
+  "suggest.noselect": true,
+  "suggest.timeout": 500,
+  "suggest.maxCompleteItemCount": 50
+}
+```
+
+## Inline completion
+
+Inline completion is a separate feature from popup completion. It shows ghost-text suggestions directly in the buffer without opening a popup menu, similar to GitHub Copilot.
+
+Inline completion is enabled by default and triggers automatically after document contents synchronize in insert mode.
+
+<Info>
+  Inline completion and popup completion share the same default navigation keys (`<C-n>`, `<C-p>`, `<C-e>`, `<C-y>`). To accept inline completion while the popup is visible, dismiss the popup first with `<C-e>` or use `coc#inline#accept()` directly.
+</Info>
+
+Configure inline completion with `inlineSuggest.*` settings:
+
+```json
+{
+  "inlineSuggest.autoTrigger": true
+}
+```
+
+To disable inline completion for specific filetypes:
+
+```json
+{
+  "[javascript][typescript]": {
+    "inlineSuggest.autoTrigger": false
+  }
+}
+```
+
+To disable inline completion for a buffer entirely, set `b:coc_inline_disable = 1`.
+
+### Inline completion functions
+
+| Function | Description |
+|---|---|
+| `coc#inline#trigger()` | Manually trigger inline completion |
+| `coc#inline#visible()` | Check if a ghost-text suggestion is shown |
+| `coc#inline#accept()` | Accept the current inline suggestion |
+| `coc#inline#cancel()` | Dismiss the inline suggestion |
+| `coc#inline#next()` | Navigate to the next inline suggestion |
+| `coc#inline#prev()` | Navigate to the previous inline suggestion |

@@ -1,0 +1,488 @@
+---
+title: "Providers"
+description: "Implement LSP provider interfaces to add language intelligence — completions, hover, definitions, code actions, formatting, and more."
+---
+
+Providers are objects that implement one or more provider interfaces and are registered with the `languages` API. coc.nvim calls your provider methods when the user requests a language feature (e.g. triggering completion, hovering over a symbol, or running `:Format`).
+
+All provider methods receive a `CancellationToken`. Check `token.isCancellationRequested` before expensive operations and return `null` or `undefined` to opt out of providing results for a given invocation.
+
+---
+
+## DocumentSelector
+
+Every provider is registered with a `DocumentSelector` that limits which documents it applies to.
+
+```typescript
+type DocumentSelector = (string | DocumentFilter)[]
+
+interface DocumentFilter {
+  language?: string   // e.g. 'typescript', 'python'
+  scheme?: string     // e.g. 'file', 'untitled'
+  pattern?: string    // glob pattern, e.g. '**/*.ts'
+}
+```
+
+<CodeGroup>
+```javascript Language string (shorthand)
+// Matches all TypeScript buffers
+languages.registerHoverProvider(['typescript'], provider)
+```
+
+```javascript DocumentFilter object
+// Matches TypeScript files on disk only
+languages.registerHoverProvider(
+  [{ language: 'typescript', scheme: 'file' }],
+  provider
+)
+```
+
+```javascript Glob pattern
+// Matches any JSON file named tsconfig.json
+languages.registerHoverProvider(
+  [{ pattern: '**/tsconfig.json' }],
+  provider
+)
+```
+</CodeGroup>
+
+---
+
+## ProviderResult
+
+All provider methods return `ProviderResult<T>`:
+
+```typescript
+type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | null>
+```
+
+You can return the value directly, return a Promise, or return `null`/`undefined` to signal no result.
+
+---
+
+## CompletionItemProvider
+
+Provides completion items at a position in a document. The optional `resolveCompletionItem` method is called lazily to fill in expensive fields (e.g. documentation) for the item the user has selected.
+
+```typescript
+interface CompletionItemProvider {
+  provideCompletionItems(
+    document: TextDocument,
+    position: Position,
+    token: CancellationToken,
+    context?: CompletionContext
+  ): ProviderResult<CompletionItem[] | CompletionList>
+
+  resolveCompletionItem?(
+    item: CompletionItem,
+    token: CancellationToken
+  ): ProviderResult<CompletionItem>
+}
+```
+
+**Registration:**
+
+```javascript
+languages.registerCompletionItemProvider(
+  name,       // string — unique source name
+  shortcut,   // string — label shown in popup (≤3 chars recommended)
+  selector,   // DocumentSelector | string | null
+  provider,   // CompletionItemProvider
+  triggerCharacters,    // string[] — characters that trigger completion
+  priority?,            // number — source priority
+  allCommitCharacters?  // string[] — characters that confirm completion
+): Disposable
+```
+
+**Full working example:**
+
+```javascript
+const { languages, workspace } = require('coc.nvim')
+
+exports.activate = async (context) => {
+  const provider = {
+    provideCompletionItems(document, position, token, context) {
+      if (token.isCancellationRequested) return []
+      return [
+        {
+          label: 'mySnippet',
+          insertText: 'mySnippet(${1:arg})',
+          insertTextFormat: 2, // Snippet
+          detail: 'My custom snippet',
+          documentation: 'Inserts mySnippet with one argument.'
+        }
+      ]
+    },
+
+    resolveCompletionItem(item, token) {
+      // Optionally fill in documentation lazily
+      item.documentation = `Full docs for ${item.label}`
+      return item
+    }
+  }
+
+  context.subscriptions.push(
+    languages.registerCompletionItemProvider(
+      'myext',   // name
+      'MY',      // shortcut shown in popup
+      null,      // null = all filetypes
+      provider,
+      ['.']      // trigger on dot
+    )
+  )
+}
+```
+
+---
+
+## HoverProvider
+
+Returns hover information (markdown or plain text) for a position in a document.
+
+```typescript
+interface HoverProvider {
+  provideHover(
+    document: TextDocument,
+    position: Position,
+    token: CancellationToken
+  ): ProviderResult<Hover>
+}
+```
+
+**Registration:**
+
+```javascript
+languages.registerHoverProvider(selector, provider): Disposable
+```
+
+**Example:**
+
+```javascript
+const { languages, MarkupKind } = require('coc.nvim')
+
+const provider = {
+  provideHover(document, position, token) {
+    const word = document.getText(
+      document.getWordRangeAtPosition(position)
+    )
+    return {
+      contents: {
+        kind: MarkupKind.Markdown,
+        value: `**${word}** — hover from myext`
+      }
+    }
+  }
+}
+
+context.subscriptions.push(
+  languages.registerHoverProvider(['myfiletype'], provider)
+)
+```
+
+---
+
+## DefinitionProvider
+
+Provides go-to-definition locations for a symbol under the cursor.
+
+```typescript
+interface DefinitionProvider {
+  provideDefinition(
+    document: TextDocument,
+    position: Position,
+    token: CancellationToken
+  ): ProviderResult<Definition | DefinitionLink[]>
+}
+```
+
+**Registration:**
+
+```javascript
+languages.registerDefinitionProvider(selector, provider): Disposable
+```
+
+---
+
+## CodeActionProvider
+
+Provides code actions (quick fixes, refactorings) for a range in a document.
+
+```typescript
+interface CodeActionProvider {
+  provideCodeActions(
+    document: TextDocument,
+    range: Range,
+    context: CodeActionContext,
+    token: CancellationToken
+  ): ProviderResult<(Command | CodeAction)[]>
+
+  resolveCodeAction?(
+    codeAction: CodeAction,
+    token: CancellationToken
+  ): ProviderResult<CodeAction>
+}
+```
+
+**Registration:**
+
+```javascript
+languages.registerCodeActionProvider(
+  selector,
+  provider,
+  clientId,          // string | undefined — identifies the extension
+  codeActionKinds?   // CodeActionKind[] — restrict which kinds are provided
+): Disposable
+```
+
+---
+
+## DocumentFormattingEditProvider
+
+Provides text edits that format an entire document.
+
+```typescript
+interface DocumentFormattingEditProvider {
+  provideDocumentFormattingEdits(
+    document: TextDocument,
+    options: FormattingOptions,
+    token: CancellationToken
+  ): ProviderResult<TextEdit[]>
+}
+```
+
+**Registration:**
+
+```javascript
+// Also available as registerDocumentFormattingEditProvider (VSCode-compatible alias)
+languages.registerDocumentFormatProvider(selector, provider, priority?): Disposable
+```
+
+---
+
+## Other Provider Interfaces
+
+<AccordionGroup>
+  <Accordion title="DeclarationProvider">
+    ```typescript
+    interface DeclarationProvider {
+      provideDeclaration(
+        document: TextDocument,
+        position: Position,
+        token: CancellationToken
+      ): ProviderResult<Definition | DefinitionLink[]>
+    }
+    ```
+    Registration: `languages.registerDeclarationProvider(selector, provider)`
+  </Accordion>
+
+  <Accordion title="TypeDefinitionProvider">
+    ```typescript
+    interface TypeDefinitionProvider {
+      provideTypeDefinition(
+        document: TextDocument,
+        position: Position,
+        token: CancellationToken
+      ): ProviderResult<Definition | DefinitionLink[]>
+    }
+    ```
+    Registration: `languages.registerTypeDefinitionProvider(selector, provider)`
+  </Accordion>
+
+  <Accordion title="ImplementationProvider">
+    ```typescript
+    interface ImplementationProvider {
+      provideImplementation(
+        document: TextDocument,
+        position: Position,
+        token: CancellationToken
+      ): ProviderResult<Definition | DefinitionLink[]>
+    }
+    ```
+    Registration: `languages.registerImplementationProvider(selector, provider)`
+  </Accordion>
+
+  <Accordion title="ReferenceProvider">
+    ```typescript
+    interface ReferenceProvider {
+      provideReferences(
+        document: TextDocument,
+        position: Position,
+        context: ReferenceContext,
+        token: CancellationToken
+      ): ProviderResult<Location[]>
+    }
+    ```
+    Registration: `languages.registerReferencesProvider(selector, provider)` (also aliased as `registerReferenceProvider`)
+  </Accordion>
+
+  <Accordion title="RenameProvider">
+    ```typescript
+    interface RenameProvider {
+      provideRenameEdits(
+        document: TextDocument,
+        position: Position,
+        newName: string,
+        token: CancellationToken
+      ): ProviderResult<WorkspaceEdit>
+
+      prepareRename?(
+        document: TextDocument,
+        position: Position,
+        token: CancellationToken
+      ): ProviderResult<Range | { range: Range; placeholder: string }>
+    }
+    ```
+    Registration: `languages.registerRenameProvider(selector, provider)`
+  </Accordion>
+
+  <Accordion title="DocumentRangeFormattingEditProvider">
+    ```typescript
+    interface DocumentRangeFormattingEditProvider {
+      provideDocumentRangeFormattingEdits(
+        document: TextDocument,
+        range: Range,
+        options: FormattingOptions,
+        token: CancellationToken
+      ): ProviderResult<TextEdit[]>
+    }
+    ```
+    Registration: `languages.registerDocumentRangeFormatProvider(selector, provider, priority?)` (also aliased as `registerDocumentRangeFormattingEditProvider`)
+  </Accordion>
+
+  <Accordion title="SignatureHelpProvider">
+    ```typescript
+    interface SignatureHelpProvider {
+      provideSignatureHelp(
+        document: TextDocument,
+        position: Position,
+        token: CancellationToken,
+        context: SignatureHelpContext
+      ): ProviderResult<SignatureHelp>
+    }
+    ```
+    Registration: `languages.registerSignatureHelpProvider(selector, provider, triggerCharacters?)`
+  </Accordion>
+
+  <Accordion title="DocumentSymbolProvider">
+    ```typescript
+    interface DocumentSymbolProvider {
+      meta?: DocumentSymbolProviderMetadata
+      provideDocumentSymbols(
+        document: TextDocument,
+        token: CancellationToken
+      ): ProviderResult<SymbolInformation[] | DocumentSymbol[]>
+    }
+    ```
+    Registration: `languages.registerDocumentSymbolProvider(selector, provider, metadata?)`
+  </Accordion>
+
+  <Accordion title="WorkspaceSymbolProvider">
+    ```typescript
+    interface WorkspaceSymbolProvider {
+      provideWorkspaceSymbols(
+        query: string,
+        token: CancellationToken
+      ): ProviderResult<WorkspaceSymbol[]>
+
+      resolveWorkspaceSymbol?(
+        symbol: WorkspaceSymbol,
+        token: CancellationToken
+      ): ProviderResult<WorkspaceSymbol>
+    }
+    ```
+    Registration: `languages.registerWorkspaceSymbolProvider(provider)` — no selector, applies workspace-wide.
+  </Accordion>
+
+  <Accordion title="CodeLensProvider">
+    ```typescript
+    interface CodeLensProvider {
+      onDidChangeCodeLenses?: Event<void>
+      provideCodeLenses(
+        document: TextDocument,
+        token: CancellationToken
+      ): ProviderResult<CodeLens[]>
+
+      resolveCodeLens?(
+        codeLens: CodeLens,
+        token: CancellationToken
+      ): ProviderResult<CodeLens>
+    }
+    ```
+    Registration: `languages.registerCodeLensProvider(selector, provider)`
+  </Accordion>
+
+  <Accordion title="InlayHintsProvider">
+    ```typescript
+    interface InlayHintsProvider {
+      onDidChangeInlayHints?: Event<void>
+      provideInlayHints(
+        document: TextDocument,
+        range: Range,
+        token: CancellationToken
+      ): ProviderResult<InlayHint[]>
+
+      resolveInlayHint?(hint: InlayHint, token: CancellationToken): ProviderResult<InlayHint>
+    }
+    ```
+    Registration: `languages.registerInlayHintsProvider(selector, provider)`
+  </Accordion>
+
+  <Accordion title="FoldingRangeProvider">
+    ```typescript
+    interface FoldingRangeProvider {
+      onDidChangeFoldingRanges?: Event<void>
+      provideFoldingRanges(
+        document: TextDocument,
+        context: FoldingContext,
+        token: CancellationToken
+      ): ProviderResult<FoldingRange[]>
+    }
+    ```
+    Registration: `languages.registerFoldingRangeProvider(selector, provider)`
+  </Accordion>
+
+  <Accordion title="DocumentSemanticTokensProvider">
+    ```typescript
+    interface DocumentSemanticTokensProvider {
+      onDidChangeSemanticTokens?: Event<void>
+      provideDocumentSemanticTokens(
+        document: TextDocument,
+        token: CancellationToken
+      ): ProviderResult<SemanticTokens>
+
+      provideDocumentSemanticTokensEdits?(
+        document: TextDocument,
+        previousResultId: string,
+        token: CancellationToken
+      ): ProviderResult<SemanticTokens | SemanticTokensDelta>
+    }
+    ```
+    Registration: `languages.registerDocumentSemanticTokensProvider(selector, provider, legend)`
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## CancellationToken
+
+Every provider method receives a `CancellationToken`. The token's `isCancellationRequested` property becomes `true` when coc.nvim no longer needs the result (e.g. the cursor moved again before the provider returned).
+
+```javascript
+async provideHover(document, position, token) {
+  const result = await expensiveOperation()
+
+  if (token.isCancellationRequested) {
+    return null  // Discard result — nobody is waiting
+  }
+
+  return { contents: result }
+}
+```
+
+You can also register a callback:
+
+```javascript
+token.onCancellationRequested(() => {
+  childProcess.kill()
+})
+```

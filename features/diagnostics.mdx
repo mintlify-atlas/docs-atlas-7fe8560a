@@ -1,0 +1,249 @@
+---
+title: "Diagnostics"
+description: "Real-time error, warning, hint, and information diagnostics from language servers, displayed in the sign column, inline, and in float windows."
+---
+
+Diagnostics are messages emitted by language servers indicating problems in your code — errors, warnings, hints, and informational notes. Coc.nvim receives these over LSP and reflects them in the sign column, as range highlights, as virtual text, and in floating windows.
+
+Diagnostics refresh automatically by default whenever the language server sends new data.
+
+<Note>
+  Most language servers only send diagnostics for buffers that are currently open. Some lint-oriented servers can provide diagnostics for all files in a workspace.
+</Note>
+
+## How diagnostics work
+
+When a language server sends a `textDocument/publishDiagnostics` notification (or coc.nvim pulls them via the newer pull diagnostics protocol), coc.nvim:
+
+1. Adds highlight ranges in the buffer for each diagnostic.
+2. Places signs in the sign column (`>>` for errors/hints/info, `⚠` for warnings by default).
+3. Updates the `b:coc_diagnostic_info` buffer variable.
+4. Refreshes any open location list created by `:CocDiagnostics`.
+5. Shows a float window with the diagnostic message when the cursor rests on a diagnostic range.
+
+Diagnostics are **not** refreshed while the buffer is hidden or while in insert mode (unless `diagnostic.refreshOnInsertMode` is enabled).
+
+## Navigating diagnostics
+
+### Jump between diagnostics in the current file
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('n', '[g', '<Plug>(coc-diagnostic-prev)', { silent = true })
+    keyset('n', ']g', '<Plug>(coc-diagnostic-next)', { silent = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nmap <silent> [g <Plug>(coc-diagnostic-prev)
+    nmap <silent> ]g <Plug>(coc-diagnostic-next)
+    ```
+  </Tab>
+</Tabs>
+
+Additional navigation plug mappings:
+
+| Mapping | Action |
+|---|---|
+| `<Plug>(coc-diagnostic-prev)` | Jump to previous diagnostic |
+| `<Plug>(coc-diagnostic-next)` | Jump to next diagnostic |
+| `<Plug>(coc-diagnostic-prev-error)` | Jump to previous error |
+| `<Plug>(coc-diagnostic-next-error)` | Jump to next error |
+| `<Plug>(coc-diagnostic-info)` | Show diagnostic message at cursor |
+
+### Open diagnostics in a location list
+
+```vim
+:CocDiagnostics
+```
+
+Opens a location list populated with all diagnostics for the current buffer. The list updates automatically as diagnostics change (controlled by `diagnostic.locationlistUpdate`).
+
+### View all project diagnostics
+
+```vim
+:CocList diagnostics
+```
+
+Opens the CocList interface with all diagnostics across the entire workspace. You can filter, preview, and jump directly to each diagnostic.
+
+A suggested mapping:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('n', '<space>a', ':<C-u>CocList diagnostics<cr>', { silent = true, nowait = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nnoremap <silent><nowait> <space>a  :<C-u>CocList diagnostics<cr>
+    ```
+  </Tab>
+</Tabs>
+
+### Jump to related locations
+
+Some diagnostics carry related location information (for example, the declaration that conflicts with an error). To jump to those:
+
+```vim
+:CocCommand workspace.diagnosticRelated
+```
+
+## Sign column indicators
+
+Signs appear in the sign column for every diagnostic. Set `signcolumn=yes` in your config to keep the column always visible and prevent the text from shifting when diagnostics appear or clear:
+
+```vim
+set signcolumn=yes
+```
+
+Default sign text (configurable):
+
+| Severity | Default sign |
+|---|---|
+| Error | `>>` |
+| Warning | `⚠` |
+| Info | `>>` |
+| Hint | `>>` |
+
+## Diagnostic float window
+
+When the cursor rests on a diagnostics range, coc.nvim displays the diagnostic message in a floating window (or popup on Vim 8). The delay before showing is controlled by `diagnostic.messageDelay` (default: 200 ms).
+
+To show the diagnostic float manually, use:
+
+```vim
+call CocActionAsync('diagnosticInfo')
+" or the plug mapping:
+" <Plug>(coc-diagnostic-info)
+```
+
+## Highlight groups
+
+Coc.nvim defines highlight groups for each diagnostic severity. You can override them in your colorscheme or config:
+
+| Group | Purpose |
+|---|---|
+| `CocErrorHighlight` | Error range highlight |
+| `CocWarningHighlight` | Warning range highlight |
+| `CocInfoHighlight` | Info range highlight |
+| `CocHintHighlight` | Hint range highlight |
+| `CocErrorSign` | Error sign text |
+| `CocWarningSign` | Warning sign text |
+| `CocInfoSign` | Info sign text |
+| `CocHintSign` | Hint sign text |
+| `CocErrorVirtualText` | Error virtual text |
+| `CocWarningVirtualText` | Warning virtual text |
+
+## Configuration options
+
+Configure diagnostics in `coc-settings.json`:
+
+<AccordionGroup>
+  <Accordion title="diagnostic.enable">
+    Enable or disable diagnostic display entirely.
+
+    ```json
+    "diagnostic.enable": true
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.enableSign">
+    Show or hide signs in the sign column.
+
+    ```json
+    "diagnostic.enableSign": true
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.signPriority">
+    Priority of diagnostic signs relative to other plugins that also place signs.
+
+    ```json
+    "diagnostic.signPriority": 10
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.virtualText">
+    Show diagnostic messages as virtual text inline in the buffer. Requires Neovim or Vim >= 9.0.0067.
+
+    ```json
+    "diagnostic.virtualText": false
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.messageTarget">
+    Where to display the diagnostic message. Options: `"float"` (default), `"echo"`, or `"preview"`.
+
+    ```json
+    "diagnostic.messageTarget": "float"
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.level">
+    Minimum severity level to display. Options: `"hint"` (default, show all), `"information"`, `"warning"`, `"error"`.
+
+    ```json
+    "diagnostic.level": "hint"
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.displayByAle">
+    Delegate diagnostic display to ALE (or a compatible shim like `coc-diagnostics-shim.nvim`). Disables coc.nvim's own sign, highlight, and float handling. Requires a restart to take effect.
+
+    ```json
+    "diagnostic.displayByAle": false
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.displayByVimDiagnostic">
+    Forward diagnostics to Neovim's native `vim.diagnostic` API. This prevents coc.nvim from handling display itself.
+
+    ```json
+    "diagnostic.displayByVimDiagnostic": false
+    ```
+  </Accordion>
+  <Accordion title="diagnostic.refreshOnInsertMode">
+    Allow diagnostic refresh while in insert mode. Disabled by default to avoid flickering.
+
+    ```json
+    "diagnostic.refreshOnInsertMode": false
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Example coc-settings.json
+
+```json
+{
+  "diagnostic.enable": true,
+  "diagnostic.enableSign": true,
+  "diagnostic.virtualText": true,
+  "diagnostic.virtualTextCurrentLineOnly": true,
+  "diagnostic.messageTarget": "float",
+  "diagnostic.level": "hint",
+  "diagnostic.warningSign": "⚠",
+  "diagnostic.errorSign": "✗"
+}
+```
+
+## Toggling diagnostics
+
+```vim
+" Toggle globally
+call CocAction('diagnosticToggle')
+
+" Toggle for current buffer only
+call CocAction('diagnosticToggleBuffer')
+```
+
+## Pull diagnostics
+
+The LSP 3.17 specification introduced a pull-based diagnostics model where the client requests diagnostics instead of waiting for the server to push them. Coc.nvim supports this for servers that advertise the capability.
+
+Pull diagnostics are enabled by default and run for visible documents on change. Configure them under the `pullDiagnostic.*` namespace:
+
+```json
+{
+  "pullDiagnostic.onChange": true
+}
+```
+
+<Info>
+  Pull and push diagnostics can coexist. If a server supports both, coc.nvim will use pull diagnostics when available.
+</Info>

@@ -1,0 +1,316 @@
+---
+title: "CocList API"
+description: "Create custom CocList sources by extending BasicList — define items, actions, and filtering for the fuzzy-finder UI."
+---
+
+CocList is coc.nvim's interactive fuzzy-finder UI, similar to telescope.nvim or fzf. It opens a buffer where the user types to filter items and selects one to run an action. Extensions can contribute custom list sources by extending `BasicList` and registering them with `listManager`.
+
+Built-in lists include `diagnostics`, `commands`, `extensions`, `symbols`, `outline`, and more. Your custom list appears alongside them and can be opened with `:CocList mylist`.
+
+---
+
+## Extending BasicList
+
+`BasicList` is an abstract class exported from `coc.nvim`. Subclass it, set a `name`, register actions, and implement `loadItems`.
+
+```javascript
+const { BasicList, listManager, workspace } = require('coc.nvim')
+
+class MyList extends BasicList {
+  constructor() {
+    super()
+    this.name = 'mylist'
+    this.description = 'My custom list'
+    this.defaultAction = 'open'
+
+    this.addAction('open', async (item, context) => {
+      // item.data holds whatever you put in loadItems
+      await workspace.openResource(item.data.uri)
+    })
+
+    this.addAction('echo', async (item) => {
+      const { window } = require('coc.nvim')
+      await window.showInformationMessage(item.label)
+    })
+  }
+
+  async loadItems(context, token) {
+    // context.input is what the user has typed (for interactive filtering)
+    return [
+      { label: 'Item 1', data: { uri: 'file:///tmp/one.txt' } },
+      { label: 'Item 2', data: { uri: 'file:///tmp/two.txt' } },
+    ]
+  }
+}
+
+exports.activate = async (context) => {
+  context.subscriptions.push(
+    listManager.registerList(new MyList())
+  )
+}
+```
+
+Open your list from Vim:
+
+```vim
+:CocList mylist
+```
+
+---
+
+## BasicList Properties
+
+<ParamField path="name" type="string" required>
+  Unique identifier for the list. Used in `:CocList <name>`. Must be set in the constructor.
+</ParamField>
+
+<ParamField path="description" type="string">
+  Short description shown in `:CocList lists`.
+</ParamField>
+
+<ParamField path="detail" type="string">
+  Longer description shown in the list's help screen.
+</ParamField>
+
+<ParamField path="defaultAction" type="string">
+  The name of the action to run when the user presses `<CR>`. Defaults to `'open'`. Must match one of the registered action names.
+</ParamField>
+
+<ParamField path="actions" type="ListAction[]">
+  The array of registered actions. Use `addAction` or `addMultipleAction` instead of mutating this directly.
+</ParamField>
+
+<ParamField path="options" type="ListArgument[]">
+  CLI-style arguments your list accepts. Declared here and parsed via `parseArguments(args)` inside `loadItems`.
+
+  ```javascript
+  this.options = [
+    {
+      name: '--all',
+      description: 'Include hidden items',
+      hasValue: false
+    },
+    {
+      name: '--type <type>',
+      key: 'type',
+      description: 'Filter by type',
+      hasValue: true
+    }
+  ]
+  ```
+</ParamField>
+
+<ParamField path="interactive" type="boolean">
+  Set to `true` if your list supports interactive (per-keystroke) filtering by calling back to your server. When `false` (default), coc.nvim filters items client-side.
+</ParamField>
+
+---
+
+## loadItems(context, token)
+
+The only required method. Returns items to populate the list.
+
+```typescript
+abstract loadItems(
+  context: ListContext,
+  token?: CancellationToken
+): Promise<ListItem[] | ListTask | null | undefined>
+```
+
+<ParamField path="context.input" type="string">
+  The current text the user has typed in the prompt. Use this to filter results when `interactive` is `true`.
+</ParamField>
+
+<ParamField path="context.args" type="string[]">
+  Raw arguments passed to the list (e.g. from `:CocList mylist --all`). Parse them with `this.parseArguments(context.args)`.
+</ParamField>
+
+<ParamField path="context.cwd" type="string">
+  The current working directory at the time the list was opened.
+</ParamField>
+
+<ParamField path="context.options" type="ListOptions">
+  The full set of list options (`position`, `mode`, `matcher`, `ignorecase`, etc.).
+</ParamField>
+
+You can return a `ListTask` (an event emitter) instead of a plain array to stream items asynchronously:
+
+```javascript
+async loadItems(context, token) {
+  const task = this.createCommandTask({
+    cmd: 'find',
+    args: [context.cwd, '-name', '*.ts'],
+    onLine: (line) => ({ label: line, data: { path: line } }),
+  })
+  return task
+}
+```
+
+---
+
+## ListItem
+
+Each item returned from `loadItems` must have at least a `label`.
+
+<ParamField path="label" type="string" required>
+  The text displayed in the list UI.
+</ParamField>
+
+<ParamField path="data" type="any">
+  Arbitrary data attached to the item. Passed to action handlers as `item.data`.
+</ParamField>
+
+<ParamField path="location" type="LocationWithTarget | LocationWithLine | string">
+  If set, the item has a file location. Used automatically by built-in actions like `open`, `preview`, `tabe`, `vsplit`, `split`, and `quickfix` (available via `this.addLocationActions()`).
+</ParamField>
+
+<ParamField path="filterText" type="string">
+  Alternative text used for fuzzy matching. Defaults to `label` when not set.
+</ParamField>
+
+<ParamField path="sortText" type="string">
+  Text used for sorting items in fuzzy mode. Defaults to `label`.
+</ParamField>
+
+<ParamField path="preselect" type="boolean">
+  When `true`, the item is pre-selected when the list opens.
+</ParamField>
+
+---
+
+## Registering Actions
+
+<ParamField path="addAction(name, fn, options?)" type="void">
+  Registers an action that operates on a **single** selected item.
+
+  ```javascript
+  this.addAction('open', async (item, context) => {
+    await workspace.jumpTo(item.data.uri)
+  })
+  ```
+</ParamField>
+
+<ParamField path="addMultipleAction(name, fn, options?)" type="void">
+  Registers an action that receives **all** selected items at once. The user can select multiple items with `<Tab>` before running the action.
+
+  ```javascript
+  this.addMultipleAction('delete', async (items, context) => {
+    for (const item of items) {
+      await fs.promises.unlink(item.data.path)
+    }
+  })
+  ```
+</ParamField>
+
+<ParamField path="createAction(action)" type="void">
+  Low-level method to register either a `SingleListAction` or `MultipleListAction` directly. Replaces an existing action with the same name if present.
+</ParamField>
+
+---
+
+## ListAction Options
+
+<ParamField path="persist" type="boolean">
+  When `true`, the list stays open after the action runs. Useful for preview-style actions.
+</ParamField>
+
+<ParamField path="reload" type="boolean">
+  When `true`, `loadItems` is called again after the action completes to refresh the list.
+</ParamField>
+
+<ParamField path="parallel" type="boolean">
+  When `true` and `multiple` is also `true`, the action is executed concurrently for each selected item.
+</ParamField>
+
+<ParamField path="tabPersist" type="boolean">
+  When `true`, the list persists when the user switches tabs.
+</ParamField>
+
+---
+
+## Location-Based Lists
+
+If your items have a `location` field, call `this.addLocationActions()` in the constructor to automatically register the standard location actions: `open`, `tabe`, `drop`, `vsplit`, `split`, `preview`, and `quickfix`.
+
+```javascript
+class FileList extends BasicList {
+  constructor() {
+    super()
+    this.name = 'myfiles'
+    this.defaultAction = 'open'
+    this.addLocationActions()  // registers open, tabe, preview, quickfix, etc.
+  }
+
+  async loadItems(context) {
+    return [
+      {
+        label: 'src/index.ts:10',
+        location: {
+          uri: 'file:///project/src/index.ts',
+          range: {
+            start: { line: 9, character: 0 },
+            end:   { line: 9, character: 0 }
+          }
+        }
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Custom Preview
+
+For non-location items, call `this.preview(options, context)` inside a `persist: true` action to show content in a preview window without closing the list.
+
+```javascript
+this.addAction('preview', async (item, context) => {
+  await this.preview(
+    {
+      lines: item.data.content.split('\n'),
+      filetype: 'markdown',
+      bufname: item.label,
+    },
+    context
+  )
+}, { persist: true })
+```
+
+<ParamField path="options.lines" type="string[]" required>
+  Lines of content to display.
+</ParamField>
+
+<ParamField path="options.filetype" type="string">
+  Filetype for syntax highlighting.
+</ParamField>
+
+<ParamField path="options.bufname" type="string">
+  Name shown in the preview buffer's status line.
+</ParamField>
+
+<ParamField path="options.lnum" type="number">
+  Line number to scroll the preview to (1-based).
+</ParamField>
+
+<ParamField path="options.range" type="Range">
+  Range to highlight in the preview window.
+</ParamField>
+
+---
+
+## Registering the List
+
+Use `listManager.registerList` and push the returned `Disposable` to `context.subscriptions`:
+
+```javascript
+exports.activate = async (context) => {
+  context.subscriptions.push(
+    listManager.registerList(new MyList())
+  )
+}
+```
+
+<Tip>
+  The list is deregistered automatically when the `Disposable` is disposed. If you push it to `context.subscriptions`, this happens on extension deactivation.
+</Tip>

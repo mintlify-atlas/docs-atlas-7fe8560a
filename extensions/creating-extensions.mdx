@@ -1,0 +1,293 @@
+---
+title: "Creating Extensions"
+description: "Build your own coc.nvim extensions using Node.js and the coc.nvim API."
+---
+
+coc.nvim extensions are CommonJS Node.js modules published to npm. They hook into coc.nvim's lifecycle through an `activate` export and have access to the full coc.nvim API via `require('coc.nvim')`.
+
+## Extension structure
+
+A minimal extension requires two files:
+
+```
+my-extension/
+├── package.json   # Extension metadata and contribution points
+└── index.js       # JavaScript entry file
+```
+
+For TypeScript-based extensions, you will typically compile to a `lib/` directory and point `main` at `lib/index.js`.
+
+## Create your first extension
+
+<Steps>
+  <Step title="Scaffold the project">
+    The fastest way to get started is with the official scaffolding tool:
+
+    <Tabs>
+      <Tab title="npm">
+        ```bash
+        npm init coc-extension my-extension
+        ```
+      </Tab>
+      <Tab title="yarn">
+        ```bash
+        yarn create coc-extension my-extension
+        ```
+      </Tab>
+    </Tabs>
+
+    To create an extension manually, create an empty directory and add the files described in the steps below.
+  </Step>
+
+  <Step title="Create package.json">
+    The `package.json` file defines extension metadata and contribution points. The `engines.coc` field is required and specifies the minimum coc.nvim version:
+
+    ```json package.json
+    {
+      "name": "coc-my-extension",
+      "version": "1.0.0",
+      "main": "lib/index.js",
+      "engines": {
+        "coc": "^0.0.82"
+      },
+      "activationEvents": [
+        "onLanguage:javascript"
+      ],
+      "contributes": {
+        "commands": [
+          {
+            "id": "myextension.myCommand",
+            "title": "My command",
+            "category": "myextension"
+          }
+        ],
+        "configuration": {
+          "type": "object",
+          "properties": {
+            "myextension.enable": {
+              "type": "boolean",
+              "default": true,
+              "scope": "resource",
+              "description": "Enable running of my extension."
+            }
+          }
+        }
+      }
+    }
+    ```
+
+    <Note>
+      The `name`, `version`, and `engines.coc` fields are required. The `main` field defaults to `index.js` if omitted.
+    </Note>
+  </Step>
+
+  <Step title="Write the entry file">
+    The entry file must export an `activate` function. Optionally export a `deactivate` function that runs when the extension is unloaded:
+
+    ```javascript index.js
+    const { window, commands } = require('coc.nvim')
+
+    exports.activate = async context => {
+      window.showInformationMessage('extension activated')
+
+      const disposable = commands.registerCommand('myextension.myCommand', async () => {
+        window.showInformationMessage('Hello from my extension!')
+      })
+
+      context.subscriptions.push(disposable)
+    }
+
+    exports.deactivate = () => {
+      // Clean up resources when the extension is deactivated.
+    }
+    ```
+  </Step>
+
+  <Step title="Load the extension locally">
+    Add the extension folder to your Vim `runtimepath` for local testing:
+
+    ```vim
+    set runtimepath^=/path/to/my-extension
+    ```
+
+    Alternatively, if you use vim-plug, point it directly at the local directory:
+
+    ```vim
+    Plug '/path/to/my-extension', {'do': 'npm install'}
+    ```
+  </Step>
+</Steps>
+
+## activationEvents
+
+The `activationEvents` array in `package.json` controls when coc.nvim loads your extension. If the property is absent or contains `*`, the extension activates during coc.nvim initialization.
+
+| Event | Description | Example |
+|---|---|---|
+| `*` | Always activate on startup | `"*"` |
+| `onLanguage` | Activate when a buffer with the given language ID is opened | `"onLanguage:typescript"` |
+| `onCommand` | Activate when the given command is invoked | `"onCommand:myext.doThing"` |
+| `onFileSystem` | Activate when a buffer with the given URI scheme is opened | `"onFileSystem:fugitive"` |
+| `workspaceContains` | Activate when a matching file exists in the workspace | `"workspaceContains:**/package.json"` |
+
+## contributes
+
+The `contributes` object declares what the extension adds to coc.nvim:
+
+<AccordionGroup>
+  <Accordion title="commands">
+    Declares commands that can be invoked via `:CocCommand`. Each entry requires an `id` and a `title`.
+
+    ```json
+    "commands": [
+      {
+        "id": "myextension.doThing",
+        "title": "Do the thing",
+        "category": "myextension"
+      }
+    ]
+    ```
+  </Accordion>
+  <Accordion title="configuration">
+    Defines configuration properties that users can set in `coc-settings.json`. Uses a JSON Schema `properties` object.
+
+    ```json
+    "configuration": {
+      "type": "object",
+      "properties": {
+        "myextension.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable my extension."
+        }
+      }
+    }
+    ```
+  </Accordion>
+  <Accordion title="rootPatterns">
+    Tells coc.nvim which files indicate a workspace root for a given filetype.
+
+    ```json
+    "rootPatterns": [
+      {
+        "filetype": "myfiletype",
+        "patterns": ["project_root.json"]
+      }
+    ]
+    ```
+  </Accordion>
+  <Accordion title="jsonValidation">
+    Registers JSON schema validation rules, consumed by `coc-json`.
+
+    ```json
+    "jsonValidation": [
+      {
+        "fileMatch": ".myconfig.json",
+        "url": "./schemas/myconfig.schema.json"
+      }
+    ]
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## ExtensionContext
+
+The `activate` function receives an `ExtensionContext` object. Its most important members are:
+
+| Property | Description |
+|---|---|
+| `subscriptions` | Array of `Disposable` objects. Push anything here that should be cleaned up when the extension deactivates. |
+| `extensionPath` | Absolute path to the extension's root directory. |
+| `storagePath` | Absolute path to a per-extension persistent storage directory. |
+
+```javascript
+exports.activate = async context => {
+  // Register something and push its disposable to subscriptions.
+  context.subscriptions.push(
+    commands.registerCommand('myext.hello', () => {
+      window.showInformationMessage('Hello!')
+    })
+  )
+}
+```
+
+## Using the coc.nvim API
+
+`require('coc.nvim')` exposes the full coc.nvim API. Commonly used namespaces include:
+
+| Namespace | Description |
+|---|---|
+| `workspace` | Access open documents, workspace folders, file system events, and configuration. |
+| `window` | Show messages, create output channels, status bar items, and input prompts. |
+| `languages` | Register language features: completion, diagnostics, hover, formatting, etc. |
+| `commands` | Register and execute commands. |
+
+For the full type definitions, see the [coc.nvim typings](https://github.com/neoclide/coc.nvim/blob/master/typings/index.d.ts).
+
+## Bundling with esbuild
+
+If your extension has multiple files or npm dependencies, bundle with esbuild to avoid shipping a `node_modules` directory. Mark `coc.nvim` as external so it is resolved at runtime:
+
+```javascript build.js
+async function start() {
+  await require('esbuild').build({
+    entryPoints: ['src/index.ts'],
+    bundle: true,
+    minify: process.env.NODE_ENV === 'production',
+    sourcemap: process.env.NODE_ENV === 'development',
+    mainFields: ['module', 'main'],
+    external: ['coc.nvim'],
+    platform: 'node',
+    target: 'node16.18',
+    outfile: 'lib/index.js',
+  })
+}
+
+start().catch(e => { console.error(e) })
+```
+
+## Limitations
+
+The extension runs inside a sandboxed Node.js context. The following APIs are blocked:
+
+- `process.exit()`, `process.kill()`
+- `process.reallyExit()`, `process.abort()`
+- `process.setuid()`, `process.setgid()`, `process.setgroups()`
+- `process._fatalException()`
+- `process.chdir()` — callable but has no effect
+- `process.umask()` — read-only
+
+Do not write to `process.stdout` or `process.stdin` directly; coc.nvim uses those streams internally for Vim–Node.js communication.
+
+<Warning>
+  Some globals such as `TextDecoder` and `TextEncoder` are not available directly. Access them via `globalThis.TextDecoder` and `globalThis.TextEncoder` instead.
+</Warning>
+
+## Debugging
+
+All `console.log`, `console.error`, and related calls inside an extension are redirected to the coc.nvim log file. Open it with:
+
+```vim
+:CocOpenLog
+```
+
+For more detailed tracing, set the log level before starting Vim:
+
+```vim
+let $NVIM_COC_LOG_LEVEL = 'trace'
+let $NVIM_COC_LOG_FILE = '/tmp/coc.log'
+```
+
+Then tail the file in a separate terminal while reproducing the issue:
+
+```bash
+tail -f /tmp/coc.log
+```
+
+To debug JavaScript with Chrome DevTools:
+
+```vim
+let g:coc_node_args = ['--nolazy', '--inspect-brk=5858']
+```
+
+Open `chrome://inspect/#devices` in Chrome, configure target discovery for `localhost:5858`, and click the inspect link.

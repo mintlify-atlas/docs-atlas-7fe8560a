@@ -1,0 +1,224 @@
+---
+title: "Diagnostics API"
+description: "Programmatically publish errors, warnings, and hints to the coc.nvim diagnostics system using DiagnosticCollection."
+---
+
+Extensions publish diagnostics (errors, warnings, hints) through a `DiagnosticCollection`. coc.nvim aggregates diagnostics from all collections and renders them as signs, virtual text, and highlights in the buffer. Use `:CocList diagnostics` to browse them.
+
+---
+
+## Creating a DiagnosticCollection
+
+Create a named collection via `languages.createDiagnosticCollection`. The name identifies the source in the diagnostics list UI.
+
+```javascript
+const { languages } = require('coc.nvim')
+
+exports.activate = async (context) => {
+  const collection = languages.createDiagnosticCollection('myext')
+  context.subscriptions.push(collection)
+}
+```
+
+<Note>
+  Push the collection to `context.subscriptions` so it is disposed (and all its diagnostics cleared) when the extension deactivates.
+</Note>
+
+---
+
+## DiagnosticCollection API
+
+<ParamField path="name" type="string">
+  The name of the collection, as passed to `createDiagnosticCollection`. Displayed as the source in the diagnostics list.
+</ParamField>
+
+<ParamField path="set(uri, diagnostics)" type="void">
+  Set the diagnostics for a specific URI. Pass an empty array or `undefined` to clear diagnostics for that URI.
+
+  ```javascript
+  collection.set(document.uri, [diag1, diag2])
+
+  // Clear diagnostics for this URI
+  collection.set(document.uri, [])
+  ```
+
+  Also accepts an array of `[uri, Diagnostic[]]` tuples to update multiple files atomically:
+
+  ```javascript
+  collection.set([
+    [uri1, [diag1]],
+    [uri2, [diag2, diag3]],
+  ])
+  ```
+</ParamField>
+
+<ParamField path="get(uri)" type="Diagnostic[]">
+  Returns a copy of the diagnostics currently set for the given URI. Returns an empty array if none are set.
+</ParamField>
+
+<ParamField path="has(uri)" type="boolean">
+  Returns `true` if the collection has any diagnostics for the given URI.
+</ParamField>
+
+<ParamField path="delete(uri)" type="void">
+  Removes all diagnostics for the given URI and triggers a buffer refresh.
+
+  ```javascript
+  collection.delete(closedDocument.uri)
+  ```
+</ParamField>
+
+<ParamField path="clear()" type="void">
+  Removes diagnostics for all URIs tracked by this collection.
+
+  ```javascript
+  collection.clear()
+  ```
+</ParamField>
+
+<ParamField path="forEach(callback, thisArg?)" type="void">
+  Iterates over all `[uri, Diagnostic[]]` pairs in the collection.
+
+  ```javascript
+  collection.forEach((uri, diagnostics, col) => {
+    console.log(uri, diagnostics.length)
+  })
+  ```
+</ParamField>
+
+<ParamField path="entries()" type="IterableIterator<[string, Diagnostic[]]>">
+  Returns an iterator over all `[uri, Diagnostic[]]` pairs. Useful with `for...of`.
+</ParamField>
+
+<ParamField path="dispose()" type="void">
+  Clears all diagnostics and unregisters the collection.
+</ParamField>
+
+---
+
+## Creating Diagnostic Objects
+
+Import `Diagnostic`, `DiagnosticSeverity`, and `Range` from `coc.nvim`.
+
+```javascript
+const { Diagnostic, DiagnosticSeverity, Range } = require('coc.nvim')
+
+const range = Range.create(
+  0,  // startLine   (0-based)
+  0,  // startCharacter
+  0,  // endLine
+  10  // endCharacter
+)
+
+const diag = new Diagnostic(
+  range,
+  'Undefined variable "foo"',
+  DiagnosticSeverity.Error
+)
+
+// Optional fields
+diag.source = 'myext'        // shown in the diagnostics list
+diag.code = 'E001'           // error code (string or number)
+```
+
+<Info>
+  `Diagnostic` follows the [LSP Diagnostic](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#diagnostic) spec. The `range` and `message` fields are required; `severity` defaults to `Error` when omitted.
+</Info>
+
+---
+
+## DiagnosticSeverity
+
+<ParamField path="DiagnosticSeverity.Error" type="1">
+  A hard error. Shown with the error sign (default `>>`).
+</ParamField>
+
+<ParamField path="DiagnosticSeverity.Warning" type="2">
+  A warning. Shown with the warning sign (default `⚠`).
+</ParamField>
+
+<ParamField path="DiagnosticSeverity.Information" type="3">
+  Informational diagnostic. Shown with the info sign.
+</ParamField>
+
+<ParamField path="DiagnosticSeverity.Hint" type="4">
+  A hint or suggestion. Lowest severity level.
+</ParamField>
+
+---
+
+## Complete Example
+
+This example runs a linter on every save and publishes the results as diagnostics.
+
+```javascript
+const { languages, workspace, Diagnostic, DiagnosticSeverity, Range } = require('coc.nvim')
+
+exports.activate = async (context) => {
+  const collection = languages.createDiagnosticCollection('mylinter')
+  context.subscriptions.push(collection)
+
+  // Re-lint whenever a file is saved
+  context.subscriptions.push(
+    workspace.onDidSaveTextDocument(async (document) => {
+      if (document.languageId !== 'myfiletype') return
+
+      const issues = await runMyLinter(document.getText())
+      const diagnostics = issues.map(issue => {
+        const range = Range.create(
+          issue.line - 1,
+          issue.col - 1,
+          issue.line - 1,
+          issue.col - 1 + issue.length
+        )
+        const severity =
+          issue.level === 'error'
+            ? DiagnosticSeverity.Error
+            : DiagnosticSeverity.Warning
+
+        const diag = new Diagnostic(range, issue.message, severity)
+        diag.source = 'mylinter'
+        diag.code = issue.code
+        return diag
+      })
+
+      collection.set(document.uri, diagnostics)
+    })
+  )
+
+  // Clear diagnostics when a file is closed
+  context.subscriptions.push(
+    workspace.onDidCloseTextDocument(document => {
+      collection.delete(document.uri)
+    })
+  )
+}
+```
+
+---
+
+## Reading Diagnostics
+
+To read diagnostics programmatically (e.g. to build a custom list), use `diagnosticManager` exported from `coc.nvim`.
+
+```javascript
+const { diagnosticManager } = require('coc.nvim')
+
+// Get all diagnostics as a flat sorted list (async)
+const items = await diagnosticManager.getDiagnosticList()
+// items: DiagnosticItem[] — each has .file, .lnum, .col, .message, .severity, .source
+```
+
+<ParamField path="diagnosticManager.getDiagnosticList()" type="Promise<DiagnosticItem[]>">
+  Returns all current diagnostics across all collections, sorted by severity then file then line/column.
+
+  Each `DiagnosticItem` has: `file`, `bufnr`, `lnum`, `end_lnum`, `col`, `end_col`, `source`, `code`, `message`, `severity` (string), `level` (number), `location`.
+</ParamField>
+
+<ParamField path="diagnosticManager.getCurrentDiagnostics()" type="Promise<Diagnostic[]>">
+  Returns the diagnostics at the current cursor position.
+</ParamField>
+
+<ParamField path="diagnosticManager.create(name)" type="DiagnosticCollection">
+  Lower-level alternative to `languages.createDiagnosticCollection`. Returns the existing collection if one with the same name already exists.
+</ParamField>

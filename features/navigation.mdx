@@ -1,0 +1,326 @@
+---
+title: "Code Navigation"
+description: "Jump to definitions, implementations, and references. Browse symbols, rename, and navigate your codebase with LSP-powered tools."
+---
+
+Coc.nvim implements the full set of LSP navigation features: go-to-definition, type definition, implementation, references, hover documentation, symbol search, rename, call hierarchy, and more.
+
+## Go-to navigation
+
+### Key mappings
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('n', 'gd', '<Plug>(coc-definition)',      { silent = true })
+    keyset('n', 'gy', '<Plug>(coc-type-definition)', { silent = true })
+    keyset('n', 'gi', '<Plug>(coc-implementation)',  { silent = true })
+    keyset('n', 'gr', '<Plug>(coc-references)',      { silent = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nmap <silent> gd <Plug>(coc-definition)
+    nmap <silent> gy <Plug>(coc-type-definition)
+    nmap <silent> gi <Plug>(coc-implementation)
+    nmap <silent> gr <Plug>(coc-references)
+    ```
+  </Tab>
+</Tabs>
+
+### Jump behavior
+
+- **Single result** — the location opens in the current window using the `edit` command (configurable via `coc.preferences.jumpCommand`). A context mark (`m'`) is set so you can jump back with `<C-o>`.
+- **Multiple results** — a CocList location picker opens for preview and selection.
+
+To use Vim's quickfix list instead of CocList:
+
+```json
+{
+  "coc.preferences.useQuickfixForLocations": true
+}
+```
+
+### Plug mapping reference
+
+| Mapping | Action |
+|---|---|
+| `<Plug>(coc-definition)` | Jump to definition |
+| `<Plug>(coc-type-definition)` | Jump to type definition |
+| `<Plug>(coc-implementation)` | Jump to implementation |
+| `<Plug>(coc-references)` | Jump to all references |
+| `<Plug>(coc-references-used)` | Jump to references, excluding declarations |
+| `<Plug>(coc-declaration)` | Jump to declaration |
+
+## Hover documentation
+
+Press `K` to show type information and documentation for the symbol under the cursor in a floating window.
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    function _G.show_docs()
+      local cw = vim.fn.expand('<cword>')
+      if vim.fn.index({ 'vim', 'help' }, vim.bo.filetype) >= 0 then
+        vim.api.nvim_command('h ' .. cw)
+      elseif vim.api.nvim_eval('coc#rpc#ready()') then
+        vim.fn.CocActionAsync('doHover')
+      else
+        vim.api.nvim_command('!' .. vim.o.keywordprg .. ' ' .. cw)
+      end
+    end
+
+    keyset('n', 'K', '<CMD>lua _G.show_docs()<CR>', { silent = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nnoremap <silent> K :call ShowDocumentation()<CR>
+
+    function! ShowDocumentation()
+      if CocAction('hasProvider', 'hover')
+        call CocActionAsync('doHover')
+      else
+        call feedkeys('K', 'in')
+      endif
+    endfunction
+    ```
+  </Tab>
+</Tabs>
+
+The `coc#rpc#ready()` / `CocAction('hasProvider', 'hover')` guard ensures that if coc.nvim is not ready or no hover provider exists, Vim's built-in `K` behavior is used as a fallback.
+
+Configure the hover target with `hover.target` (`"float"`, `"echo"`, or `"preview"`):
+
+```json
+{
+  "hover.target": "float"
+}
+```
+
+## Highlight symbol under cursor
+
+Highlight all occurrences of the symbol under the cursor when the cursor is idle:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    vim.api.nvim_create_autocmd('CursorHold', {
+      command = "silent call CocActionAsync('highlight')",
+    })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    autocmd CursorHold * silent call CocActionAsync('highlight')
+    ```
+  </Tab>
+</Tabs>
+
+Set `updatetime` to a lower value so `CursorHold` fires more responsively:
+
+```vim
+set updatetime=300
+```
+
+Jump between highlighted symbol positions:
+
+```vim
+:CocCommand document.jumpToPrevSymbol
+:CocCommand document.jumpToNextSymbol
+```
+
+## Rename
+
+Rename the symbol under the cursor across the entire workspace:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('n', '<leader>rn', '<Plug>(coc-rename)', { silent = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nmap <leader>rn <Plug>(coc-rename)
+    ```
+  </Tab>
+</Tabs>
+
+For local variable rename using multiple cursors (no rename provider required):
+
+```vim
+:CocCommand document.renameCurrentWord
+```
+
+Check whether the current buffer supports rename:
+
+```vim
+:echo CocAction('hasProvider', 'rename')
+```
+
+## Symbol outline
+
+Open a tree-view sidebar showing all symbols in the current document:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('n', '<space>o', ':<C-u>CocList outline<cr>', { silent = true, nowait = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nnoremap <silent><nowait> <space>o  :<C-u>CocList outline<cr>
+    ```
+  </Tab>
+</Tabs>
+
+To open the outline as a persistent split tree view:
+
+```vim
+call CocActionAsync('showOutline', 1)
+```
+
+### Workspace symbols
+
+Search symbols across the entire workspace:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('n', '<space>s', ':<C-u>CocList -I symbols<cr>', { silent = true, nowait = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nnoremap <silent><nowait> <space>s  :<C-u>CocList -I symbols<cr>
+    ```
+  </Tab>
+</Tabs>
+
+## Selection range
+
+Expand or shrink the visual selection by semantic range (requires `textDocument/selectionRange` support):
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    keyset('n', '<C-s>', '<Plug>(coc-range-select)', { silent = true })
+    keyset('x', '<C-s>', '<Plug>(coc-range-select)', { silent = true })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    nmap <silent> <C-s> <Plug>(coc-range-select)
+    xmap <silent> <C-s> <Plug>(coc-range-select)
+    ```
+  </Tab>
+</Tabs>
+
+To shrink the selection, use `<Plug>(coc-range-select-backward)` in visual mode.
+
+## Text objects
+
+Coc.nvim provides text objects for functions and classes. These require `textDocument.documentSymbol` support from the language server.
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    local opts = { silent = true, nowait = true }
+
+    -- Function text objects
+    keyset('x', 'if', '<Plug>(coc-funcobj-i)', opts)
+    keyset('o', 'if', '<Plug>(coc-funcobj-i)', opts)
+    keyset('x', 'af', '<Plug>(coc-funcobj-a)', opts)
+    keyset('o', 'af', '<Plug>(coc-funcobj-a)', opts)
+
+    -- Class text objects
+    keyset('x', 'ic', '<Plug>(coc-classobj-i)', opts)
+    keyset('o', 'ic', '<Plug>(coc-classobj-i)', opts)
+    keyset('x', 'ac', '<Plug>(coc-classobj-a)', opts)
+    keyset('o', 'ac', '<Plug>(coc-classobj-a)', opts)
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    xmap if <Plug>(coc-funcobj-i)
+    omap if <Plug>(coc-funcobj-i)
+    xmap af <Plug>(coc-funcobj-a)
+    omap af <Plug>(coc-funcobj-a)
+    xmap ic <Plug>(coc-classobj-i)
+    omap ic <Plug>(coc-classobj-i)
+    xmap ac <Plug>(coc-classobj-a)
+    omap ac <Plug>(coc-classobj-a)
+    ```
+  </Tab>
+</Tabs>
+
+| Text object | Selects |
+|---|---|
+| `if` | Inside function body |
+| `af` | Around function (including signature) |
+| `ic` | Inside class/struct/interface body |
+| `ac` | Around class/struct/interface |
+
+## Folding
+
+Create folds based on LSP folding ranges. Create a `:Fold` command:
+
+<Tabs>
+  <Tab title="Neovim (Lua)">
+    ```lua
+    vim.api.nvim_create_user_command('Fold', "call CocAction('fold', <f-args>)", { nargs = '?' })
+    ```
+  </Tab>
+  <Tab title="Vimscript">
+    ```vim
+    command! -nargs=? Fold :call CocAction('fold', <f-args>)
+    ```
+  </Tab>
+</Tabs>
+
+Then run `:Fold` or `:Fold comment` to fold all comment blocks, `:Fold imports` to fold imports, etc.
+
+Check whether the current buffer supports folding:
+
+```vim
+:echo CocAction('hasProvider', 'foldingRange')
+```
+
+## Call hierarchy
+
+Show incoming or outgoing calls for the function under the cursor in a tree view:
+
+```vim
+" Incoming calls (who calls this function)
+call CocAction('showIncomingCalls')
+
+" Outgoing calls (what this function calls)
+call CocAction('showOutgoingCalls')
+```
+
+## Type hierarchy
+
+Show super types or sub types for the type at the cursor:
+
+```vim
+call CocAction('showSuperTypes')
+call CocAction('showSubTypes')
+```
+
+Both open a split tree view. Press `<Tab>` within the tree to open an actions menu, and `<CR>` to jump to a location.
+
+## Checking provider availability
+
+Before mapping a navigation feature, verify the current buffer supports it:
+
+```vim
+:echo CocAction('hasProvider', 'definition')
+:echo CocAction('hasProvider', 'references')
+:echo CocAction('hasProvider', 'implementation')
+:echo CocAction('hasProvider', 'typeDefinition')
+:echo CocAction('hasProvider', 'rename')
+```
+
+Or use `:CocCommand document.checkBuffer` for a summary of all providers for the current buffer.

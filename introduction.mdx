@@ -1,0 +1,65 @@
+---
+title: "Introduction"
+description: "coc.nvim is a NodeJS-powered extension host for Vim and Neovim that delivers a full VS Code-like IDE experience with complete LSP 3.17 support."
+---
+
+## What is coc.nvim?
+
+coc.nvim enhances your Vim or Neovim to match the user experience provided by VS Code through a rich extension ecosystem and a full implementation of the [Language Server Protocol (LSP 3.17)](https://microsoft.github.io/language-server-protocol/).
+
+It runs in a **separate NodeJS process**, keeping your editor fast and responsive. This process hosts language servers and VS Code-compatible extensions, communicating with Vim/Neovim over a typed RPC interface.
+
+<Note>
+  coc.nvim does not include built-in support for any specific language. You
+  must install coc extensions or configure language servers separately to
+  enable LSP features.
+</Note>
+
+## How it works
+
+coc.nvim starts a long-lived NodeJS child process when Vim launches. That process:
+
+- Loads **VS Code-compatible extensions** from npm or from your `runtimepath`
+- Spawns and manages **language server processes** on your behalf
+- Implements the full LSP client, forwarding results back to Vim as completions, diagnostics, hover docs, and more
+- Exposes a **JSON configuration file** (`coc-settings.json`) that works exactly like VS Code's `settings.json`
+
+Because the heavy lifting happens outside Vim's main loop, most operations are non-blocking and will not slow down your editing experience.
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install coc.nvim with vim-plug, lazy.nvim, packer, or native Vim packages.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Set up your first extension and essential key mappings in minutes.
+  </Card>
+  <Card title="Using Extensions" icon="puzzle-piece" href="/extensions/using-extensions">
+    Browse and install extensions from npm with `:CocInstall`.
+  </Card>
+  <Card title="Completion" icon="wand-magic-sparkles" href="/features/completion">
+    Intelligent, LSP-powered auto-completion with snippet support.
+  </Card>
+  <Card title="Diagnostics" icon="triangle-exclamation" href="/features/diagnostics">
+    Inline errors and warnings sourced directly from language servers.
+  </Card>
+  <Card title="Code Actions" icon="bolt" href="/features/code-actions">
+    Quick-fix, refactor, and source actions at the cursor or selection.
+  </Card>
+</CardGroup>
+
+## Requirements
+
+<Note>
+  **Vim** >= 9.0.0438 or **Neovim** >= 0.8.0 is required.
+  **Node.js** >= 16.18.0 must be available on your `$PATH`.
+</Note>
+
+| Requirement | Minimum version |
+|-------------|-----------------|
+| Vim         | 9.0.0438        |
+| Neovim      | 0.8.0           |
+| Node.js     | 16.18.0         |
+
+For Neovim users, run `:checkhealth` after installation to verify that all requirements are satisfied.

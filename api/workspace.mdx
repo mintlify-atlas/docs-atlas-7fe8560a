@@ -1,0 +1,654 @@
+---
+title: "workspace"
+description: "The workspace module provides access to open documents, configuration, file system operations, and workspace folder management."
+---
+
+The `workspace` module is the primary interface for interacting with the editor environment. Access it via:
+
+```javascript
+const { workspace } = require('coc.nvim')
+```
+
+---
+
+## Properties
+
+<ResponseField name="nvim" type="Neovim">
+  The underlying Neovim API instance from `@chemzqm/neovim`. Use this to call any Neovim API directly.
+</ResponseField>
+
+<ResponseField name="configurations" type="Configurations">
+  The configuration manager. Prefer `workspace.getConfiguration()` for most use cases.
+</ResponseField>
+
+<ResponseField name="documentsManager" type="Documents">
+  Manages all open text documents and their buffer state.
+</ResponseField>
+
+<ResponseField name="editors" type="Editors">
+  Access to text editor instances, including the active editor and all visible editors.
+</ResponseField>
+
+<ResponseField name="tabs" type="TabsModel">
+  Model representing the current tab layout.
+</ResponseField>
+
+<ResponseField name="workspaceFolderControl" type="WorkspaceFolderController">
+  Manages workspace folders. Prefer `workspace.workspaceFolders` for read access.
+</ResponseField>
+
+<ResponseField name="contentProvider" type="ContentProvider">
+  Internal content provider registry. Use `workspace.registerTextDocumentContentProvider()` instead.
+</ResponseField>
+
+<ResponseField name="fileSystemWatchers" type="FileSystemWatcherManager">
+  Internal watcher registry. Use `workspace.createFileSystemWatcher()` instead.
+</ResponseField>
+
+<ResponseField name="keymaps" type="Keymaps">
+  Internal keymap registry. Use `workspace.registerKeymap()` instead.
+</ResponseField>
+
+<ResponseField name="autocmds" type="Autocmds">
+  Internal autocmd registry. Use `workspace.registerAutocmd()` instead.
+</ResponseField>
+
+<ResponseField name="files" type="Files">
+  Internal file operations manager.
+</ResponseField>
+
+<ResponseField name="isTrusted" type="boolean">
+  Always `true`. Indicates the workspace is trusted.
+</ResponseField>
+
+<ResponseField name="statusLine" type="StatusLine">
+  The status line model used to contribute items to `g:coc_status`.
+</ResponseField>
+
+<ResponseField name="version" type="string">
+  The coc.nvim version string.
+</ResponseField>
+
+<ResponseField name="cwd" type="string">
+  The current working directory of the documents manager.
+</ResponseField>
+
+<ResponseField name="root" type="string">
+  The workspace root path, falling back to `cwd` when no root is detected.
+</ResponseField>
+
+<ResponseField name="rootPath" type="string">
+  Alias for `root`.
+</ResponseField>
+
+<ResponseField name="bufnr" type="number">
+  The buffer number of the currently active buffer.
+</ResponseField>
+
+<ResponseField name="textDocuments" type="TextDocument[]">
+  All currently open text documents as LSP `TextDocument` objects.
+</ResponseField>
+
+<ResponseField name="documents" type="Document[]">
+  All currently open coc `Document` instances (richer than `TextDocument`).
+</ResponseField>
+
+<ResponseField name="document" type="Promise<Document | undefined>">
+  The currently active document.
+</ResponseField>
+
+<ResponseField name="workspaceFolders" type="ReadonlyArray<WorkspaceFolder>">
+  The list of workspace folders currently open.
+</ResponseField>
+
+<ResponseField name="folderPaths" type="string[]">
+  Filesystem paths of all workspace folders.
+</ResponseField>
+
+<ResponseField name="isVim" type="boolean">
+  `true` when running inside Vim (not Neovim).
+</ResponseField>
+
+<ResponseField name="isNvim" type="boolean">
+  `true` when running inside Neovim.
+</ResponseField>
+
+<ResponseField name="filetypes" type="Set<string>">
+  Set of all filetypes seen across open documents.
+</ResponseField>
+
+<ResponseField name="languageIds" type="Set<string>">
+  Set of all language IDs seen across open documents.
+</ResponseField>
+
+<ResponseField name="channelNames" type="string[]">
+  Names of all registered output channels.
+</ResponseField>
+
+<ResponseField name="pluginRoot" type="string">
+  Absolute path to the coc.nvim plugin root directory.
+</ResponseField>
+
+---
+
+## Events
+
+All events return an `Event<T>` which can be subscribed to via `.on(listener)` or `.on(listener, disposables)`.
+
+<AccordionGroup>
+  <Accordion title="Document lifecycle events">
+    <ResponseField name="onDidOpenTextDocument" type="Event<LinesTextDocument>">
+      Fires when a new text document is opened and attached.
+    </ResponseField>
+    <ResponseField name="onDidCloseTextDocument" type="Event<LinesTextDocument>">
+      Fires when a text document is closed.
+    </ResponseField>
+    <ResponseField name="onDidChangeTextDocument" type="Event<DidChangeTextDocumentParams>">
+      Fires when the content of an open text document changes.
+    </ResponseField>
+    <ResponseField name="onDidSaveTextDocument" type="Event<LinesTextDocument>">
+      Fires after a document is saved.
+    </ResponseField>
+    <ResponseField name="onWillSaveTextDocument" type="Event<TextDocumentWillSaveEvent>">
+      Fires before a document is saved. Handlers may provide edits to apply before saving.
+    </ResponseField>
+  </Accordion>
+
+  <Accordion title="Configuration & folder events">
+    <ResponseField name="onDidChangeConfiguration" type="Event<IConfigurationChangeEvent>">
+      Fires when the user's configuration changes.
+    </ResponseField>
+    <ResponseField name="onDidChangeWorkspaceFolders" type="Event<WorkspaceFoldersChangeEvent>">
+      Fires when workspace folders are added or removed.
+    </ResponseField>
+    <ResponseField name="onDidRuntimePathChange" type="Event<string[]>">
+      Fires when new directories are added to Vim's `runtimepath`.
+    </ResponseField>
+  </Accordion>
+
+  <Accordion title="File operation events">
+    <ResponseField name="onDidCreateFiles" type="Event<FileCreateEvent>">
+      Fires after files are created via `workspace.createFile()`.
+    </ResponseField>
+    <ResponseField name="onDidRenameFiles" type="Event<FileRenameEvent>">
+      Fires after files are renamed via `workspace.renameFile()`.
+    </ResponseField>
+    <ResponseField name="onDidDeleteFiles" type="Event<FileDeleteEvent>">
+      Fires after files are deleted via `workspace.deleteFile()`.
+    </ResponseField>
+    <ResponseField name="onWillCreateFiles" type="Event<FileWillCreateEvent>">
+      Fires before files are created. Handlers may return a `WorkspaceEdit`.
+    </ResponseField>
+    <ResponseField name="onWillRenameFiles" type="Event<FileWillRenameEvent>">
+      Fires before files are renamed. Handlers may return a `WorkspaceEdit`.
+    </ResponseField>
+    <ResponseField name="onWillDeleteFiles" type="Event<FileWillDeleteEvent>">
+      Fires before files are deleted. Handlers may return a `WorkspaceEdit`.
+    </ResponseField>
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Methods
+
+### getConfiguration
+
+```typescript
+getConfiguration(section?: string, scope?: ConfigurationResourceScope): WorkspaceConfiguration
+```
+
+Returns the configuration scoped to an optional `section` and optional resource URI or language ID. The returned `WorkspaceConfiguration` supports `.get()`, `.has()`, `.inspect()`, and `.update()`.
+
+<CodeGroup>
+```javascript Basic usage
+const config = workspace.getConfiguration('coc.preferences')
+const timeout = config.get<number>('timeout', 500)
+```
+
+```javascript Scoped to a resource
+const doc = await workspace.document
+const config = workspace.getConfiguration('editor', doc.uri)
+const tabSize = config.get<number>('tabSize', 2)
+```
+</CodeGroup>
+
+---
+
+### getDocument
+
+```typescript
+getDocument(uri: number | string): Document | null | undefined
+```
+
+Returns the coc `Document` for the given buffer number or URI. Returns `null` or `undefined` when the buffer does not exist or is not attached.
+
+```javascript
+const doc = workspace.getDocument(workspace.bufnr)
+if (doc) {
+  console.log(doc.filetype)
+}
+```
+
+---
+
+### getAttachedDocument
+
+```typescript
+getAttachedDocument(uri: number | string): Document
+```
+
+Like `getDocument`, but throws if the document does not exist or is not attached.
+
+---
+
+### openTextDocument
+
+```typescript
+openTextDocument(uri: URI | string): Promise<Document>
+```
+
+Opens a file URI as a coc document, loading it into a buffer if not already open.
+
+```javascript
+const doc = await workspace.openTextDocument('/path/to/file.ts')
+```
+
+---
+
+### applyEdit
+
+```typescript
+applyEdit(edit: WorkspaceEdit): Promise<boolean>
+```
+
+Applies an LSP `WorkspaceEdit` to the workspace. Returns `true` on success.
+
+```javascript
+const success = await workspace.applyEdit(workspaceEdit)
+```
+
+---
+
+### getWorkspaceFolder
+
+```typescript
+getWorkspaceFolder(uri: string | URI): WorkspaceFolder | undefined
+```
+
+Returns the workspace folder that contains the given URI, or `undefined` if none matches.
+
+```javascript
+const folder = workspace.getWorkspaceFolder(doc.uri)
+if (folder) {
+  console.log(folder.uri)
+}
+```
+
+---
+
+### findFiles
+
+```typescript
+findFiles(
+  include: GlobPattern,
+  exclude?: GlobPattern | null,
+  maxResults?: number,
+  token?: CancellationToken
+): Promise<URI[]>
+```
+
+Finds files in the workspace matching a glob pattern.
+
+```javascript
+const uris = await workspace.findFiles('**/*.ts', '**/node_modules/**', 100)
+for (const uri of uris) {
+  console.log(uri.fsPath)
+}
+```
+
+---
+
+### createFileSystemWatcher
+
+```typescript
+createFileSystemWatcher(
+  globPattern: GlobPattern,
+  ignoreCreate?: boolean,
+  ignoreChange?: boolean,
+  ignoreDelete?: boolean
+): FileSystemWatcher
+```
+
+Creates a file system watcher. Does not fail when watchman is not installed — it degrades gracefully.
+
+```javascript
+const watcher = workspace.createFileSystemWatcher('**/*.json')
+watcher.onDidChange(uri => {
+  console.log('changed:', uri.fsPath)
+})
+context.subscriptions.push(watcher)
+```
+
+---
+
+### registerTextDocumentContentProvider
+
+```typescript
+registerTextDocumentContentProvider(
+  scheme: string,
+  provider: TextDocumentContentProvider
+): Disposable
+```
+
+Registers a provider that supplies content for URIs with a custom scheme. The provider must implement `provideTextDocumentContent(uri, token)`.
+
+```javascript
+const disposable = workspace.registerTextDocumentContentProvider('myscheme', {
+  provideTextDocumentContent(uri) {
+    return `# Content for ${uri.toString()}`
+  }
+})
+context.subscriptions.push(disposable)
+```
+
+---
+
+### jumpTo
+
+```typescript
+jumpTo(uri: string | URI, position?: Position | null, openCommand?: string): Promise<void>
+```
+
+Opens the given URI in the editor and optionally moves the cursor to `position`.
+
+```javascript
+await workspace.jumpTo('file:///path/to/file.ts', { line: 10, character: 0 })
+```
+
+---
+
+### registerAutocmd
+
+```typescript
+registerAutocmd(autocmd: Autocmd, disposables?: Disposable[]): Disposable
+```
+
+Registers a Vim autocmd that invokes a JavaScript handler.
+
+```javascript
+const disposable = workspace.registerAutocmd({
+  event: 'BufWritePost',
+  pattern: '*.ts',
+  callback: async () => {
+    // handle write post
+  }
+})
+context.subscriptions.push(disposable)
+```
+
+---
+
+### watchOption
+
+```typescript
+watchOption(
+  key: string,
+  callback: (oldValue: any, newValue: any) => Thenable<void> | void,
+  disposables?: Disposable[]
+): Disposable
+```
+
+Watches a Vim option for changes. The callback receives both the old and new values.
+
+---
+
+### watchGlobal
+
+```typescript
+watchGlobal(
+  key: string,
+  callback?: (oldValue: any, newValue: any) => Thenable<void> | void,
+  disposables?: Disposable[]
+): Disposable
+```
+
+Watches a global Vim variable for changes. Neovim only.
+
+---
+
+### registerKeymap
+
+```typescript
+registerKeymap(
+  modes: MapMode[],
+  key: string,
+  fn: KeymapCallback,
+  opts?: Partial<KeymapOption>
+): Disposable
+```
+
+Registers a global keymap across one or more modes (`'n'`, `'i'`, `'v'`, etc.).
+
+---
+
+### registerLocalKeymap
+
+```typescript
+registerLocalKeymap(
+  bufnr: number,
+  mode: LocalMode,
+  key: string,
+  fn: KeymapCallback,
+  notify?: KeymapOption | boolean
+): Disposable
+```
+
+Registers a buffer-local keymap.
+
+---
+
+### createTask
+
+```typescript
+createTask(id: string): Task
+```
+
+Creates a `Task` instance for running background jobs in Vim.
+
+---
+
+### createDatabase
+
+```typescript
+createDatabase(name: string): DB
+```
+
+Creates a persistent JSON database file at the coc data directory.
+
+```javascript
+const db = workspace.createDatabase('myext')
+await db.set('key', { value: 42 })
+const val = await db.get('key')
+```
+
+---
+
+### registerBufferSync
+
+```typescript
+registerBufferSync<T extends SyncItem>(
+  create: (doc: Document) => T | undefined
+): BufferSync<T>
+```
+
+Creates a `BufferSync` that automatically calls `create` for each open document and disposes items when documents close. Useful for per-buffer state.
+
+---
+
+### createFileSystemWatcher
+
+See above.
+
+---
+
+### readFile
+
+```typescript
+readFile(uri: string): Promise<string>
+```
+
+Returns the full text content of the file at the given URI, reading from the buffer if open.
+
+---
+
+### runCommand
+
+```typescript
+runCommand(cmd: string, cwd?: string, timeout?: number): Promise<string>
+```
+
+Runs a shell command and returns stdout.
+
+---
+
+### resolveModule
+
+```typescript
+resolveModule(name: string): Promise<string>
+```
+
+Resolves a Node.js module path from yarn or npm.
+
+---
+
+### findUp
+
+```typescript
+findUp(filename: string | string[]): Promise<string | null>
+```
+
+Searches upward from the current file for a file or directory matching `filename`.
+
+---
+
+### createFile
+
+```typescript
+createFile(filepath: string, opts?: CreateFileOptions): Promise<void>
+```
+
+Creates a file on disk and loads it into a buffer.
+
+---
+
+### renameFile
+
+```typescript
+renameFile(oldPath: string, newPath: string, opts?: RenameFileOptions): Promise<void>
+```
+
+Renames a file on disk and updates any open buffers.
+
+---
+
+### deleteFile
+
+```typescript
+deleteFile(filepath: string, opts?: DeleteFileOptions): Promise<void>
+```
+
+Deletes a file from disk and closes the buffer if open.
+
+---
+
+### loadFile
+
+```typescript
+loadFile(uri: string, cmd?: string): Promise<Document>
+```
+
+Loads a file as a coc document without switching to it.
+
+---
+
+### getLine
+
+```typescript
+getLine(uri: string, line: number): Promise<string>
+```
+
+Returns the text of a specific line (0-based) from the given document URI.
+
+---
+
+### match
+
+```typescript
+match(selector: DocumentSelector | DocumentFilter | string, document: TextDocumentMatch): number
+```
+
+Returns a score indicating how well `selector` matches the given document. Returns `0` for no match.
+
+---
+
+### has
+
+```typescript
+has(feature: string): boolean
+```
+
+Checks whether the current Vim/Neovim version supports a given feature (delegates to `has()` logic).
+
+---
+
+### getRelativePath / asRelativePath
+
+```typescript
+getRelativePath(pathOrUri: string | URI, includeWorkspace?: boolean): string
+asRelativePath(pathOrUri: string | URI, includeWorkspace?: boolean): string
+```
+
+Returns the path relative to the workspace folder. `asRelativePath` is an alias.
+
+---
+
+### expand
+
+```typescript
+expand(filepath: string): string
+```
+
+Expands `~` and environment variables in a file path string.
+
+---
+
+## Usage example
+
+```javascript
+const { workspace, Disposable } = require('coc.nvim')
+
+async function activate(context) {
+  // Listen for configuration changes
+  context.subscriptions.push(
+    workspace.onDidChangeConfiguration(e => {
+      if (e.affectsConfiguration('myext')) {
+        // reload settings
+      }
+    })
+  )
+
+  // Watch for document saves
+  context.subscriptions.push(
+    workspace.onDidSaveTextDocument(doc => {
+      if (doc.languageId === 'typescript') {
+        workspace.runCommand('tsc --noEmit')
+      }
+    })
+  )
+
+  // Read current configuration
+  const config = workspace.getConfiguration('myext')
+  const enabled = config.get<boolean>('enable', true)
+}
+```

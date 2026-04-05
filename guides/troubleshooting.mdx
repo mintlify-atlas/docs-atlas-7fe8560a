@@ -1,0 +1,230 @@
+---
+title: "Troubleshooting"
+description: "Steps and solutions for diagnosing common coc.nvim problems, including version checks, log inspection, language server issues, and key mapping conflicts."
+---
+
+Work through these steps in order when something is not working as expected. Most issues fall into one of the categories below.
+
+<AccordionGroup>
+  <Accordion title="Check your Vim or Neovim version">
+    coc.nvim requires **Vim >= 9.0.0438** or **Neovim >= 0.8.0**. Older versions are not supported.
+
+    Run `:version` to see the exact version you are using. Look for the version number at the top of the output.
+
+    ```
+    :version
+    ```
+
+    If you are on Vim, confirm the patch level includes at least patch 9.0.0438. For Neovim, the version line must be `0.8.0` or later.
+
+    <Note>
+      Neovim users can also run `:checkhealth` for a comprehensive overview of
+      their environment, including coc.nvim-specific checks if the plugin
+      registers a health provider.
+    </Note>
+  </Accordion>
+
+  <Accordion title="Inspect coc.nvim with :CocInfo">
+    `:CocInfo` is the first command to run when something is wrong. It shows:
+
+    - The coc.nvim version
+    - The Node.js version and path coc.nvim is using
+    - The current log file path
+    - Any errors that occurred during startup
+
+    ```
+    :CocInfo
+    ```
+
+    If the Node.js path is wrong or missing, set it explicitly:
+
+    ```vim
+    let g:coc_node_path = '/path/to/node'
+    ```
+
+    ```lua
+    vim.g.coc_node_path = '/path/to/node'
+    ```
+
+    coc.nvim requires **Node.js >= 16.18.0**.
+  </Accordion>
+
+  <Accordion title="Run :checkhealth (Neovim)">
+    Neovim ships with a built-in health check framework. Run it to diagnose common environment issues:
+
+    ```
+    :checkhealth
+    ```
+
+    <Note>
+      `:checkhealth` covers Python, Ruby, Node.js, clipboard, and other
+      providers that coc.nvim may depend on. Review any `ERROR` or `WARNING`
+      entries carefully.
+    </Note>
+  </Accordion>
+
+  <Accordion title="View the coc.nvim log">
+    coc.nvim writes detailed output to a log file. Open it directly from Vim:
+
+    ```
+    :CocOpenLog
+    ```
+
+    <Tip>
+      Search the log for `ERROR` or `WARN` to quickly locate problems. The log
+      includes startup errors, RPC communication failures, and extension
+      messages.
+    </Tip>
+
+    The log path is also printed by `:CocInfo` if you prefer to open it in an external viewer.
+  </Accordion>
+
+  <Accordion title="Service failed to start">
+    If coc.nvim reports that a service failed to start:
+
+    1. Run `:CocInfo` and check the output for error messages.
+    2. Verify that Node.js is installed and accessible. Run `:CocInfo` and confirm the Node.js version is >= 16.18.0.
+    3. Check the log with `:CocOpenLog` for more detail.
+    4. If you set `g:coc_node_path`, make sure the path is correct and the binary is executable.
+    5. Try restarting coc.nvim with `:CocRestart`.
+  </Accordion>
+
+  <Accordion title="Language server issues">
+    If a language server is installed but not working correctly:
+
+    1. Check which services are running:
+
+       ```
+       :CocList services
+       ```
+
+    2. View the raw output channel of the language server:
+
+       ```
+       :CocCommand workspace.showOutput
+       ```
+
+       Select the relevant server from the prompt. This shows all messages exchanged between coc.nvim and the language server, which is the most reliable way to diagnose protocol-level issues.
+
+    3. Enable verbose tracing for a specific server by adding `"trace.server": "verbose"` to its entry in `coc-settings.json`:
+
+       ```json
+       {
+         "languageserver": {
+           "go": {
+             "command": "gopls",
+             "rootPatterns": ["go.mod"],
+             "trace.server": "verbose",
+             "filetypes": ["go"]
+           }
+         }
+       }
+       ```
+  </Accordion>
+
+  <Accordion title="Key mapping conflicts">
+    coc.nvim sets no mappings by default. If a mapping you added is not working, another plugin has likely claimed the same key.
+
+    Check the current mapping for any insert-mode key:
+
+    ```
+    :verbose imap <tab>
+    ```
+
+    The `:verbose` prefix shows which file last set the mapping. Use this for any mode prefix (`nmap`, `xmap`, `omap`, etc.) and any key.
+
+    To resolve conflicts:
+
+    - Change the coc.nvim mapping to an unused key.
+    - Or, ensure coc.nvim's mappings are set **after** the conflicting plugin in your config.
+  </Accordion>
+
+  <Accordion title="Completion not triggering">
+    If the completion popup does not appear:
+
+    1. Confirm you have a language server or completion source configured for the current filetype.
+    2. Check the `suggest.autoTrigger` setting in `coc-settings.json`. The default is `"always"`. If it is set to `"none"`, completion only triggers manually via `<c-space>` (or `<c-@>` in Vim).
+
+       ```json
+       {
+         "suggest.autoTrigger": "always"
+       }
+       ```
+
+    3. Verify that `coc#pum#visible()` is available by running `:echo coc#pum#visible()`. If it errors, coc.nvim has not loaded correctly — check `:CocInfo`.
+    4. Make sure `updatetime` is set to a low value (300 ms is recommended) so coc.nvim responds promptly.
+  </Accordion>
+
+  <Accordion title="No diagnostics showing">
+    If you expect diagnostics but none appear in the buffer:
+
+    1. Confirm the language server is running:
+
+       ```
+       :CocList services
+       ```
+
+       The service for the current filetype should show a `running` state.
+
+    2. Open the server output to check for errors:
+
+       ```
+       :CocCommand workspace.showOutput
+       ```
+
+    3. Check that `signcolumn` is set to `yes` or `auto` so diagnostic signs can appear:
+
+       ```vim
+       set signcolumn=yes
+       ```
+
+    4. Check whether diagnostics are disabled for the buffer:
+
+       ```vim
+       echo b:coc_diagnostic_disable
+       ```
+
+       If this is `1`, diagnostics have been turned off for the current buffer.
+  </Accordion>
+
+  <Accordion title="Performance issues">
+    If Vim feels slow after installing coc.nvim:
+
+    1. Run `:CocInfo` and look at the memory section to see if the Node.js process is consuming excessive memory.
+    2. Check whether a language server is stuck in a high-CPU state. The `:CocInfo` output includes the server process IDs.
+    3. Increase `updatetime` to reduce how often `CursorHold` fires (at the cost of slower diagnostics and symbol highlighting):
+
+       ```vim
+       set updatetime=1000
+       ```
+
+    4. Disable symbol highlighting if it is causing slowdowns:
+
+       ```vim
+       " Remove or comment out this line:
+       autocmd CursorHold * silent call CocActionAsync('highlight')
+       ```
+  </Accordion>
+
+  <Accordion title="Disable all extensions temporarily">
+    To test whether an extension is causing a problem, start Vim with the `COC_NO_PLUGINS` environment variable set. This prevents all coc.nvim extensions from loading:
+
+    ```bash
+    COC_NO_PLUGINS=1 vim
+    ```
+
+    ```bash
+    COC_NO_PLUGINS=1 nvim
+    ```
+
+    If the issue disappears, one of your installed extensions is responsible. Re-enable them one at a time using `:CocList extensions` to identify which one.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Still stuck?
+
+- Run `:CocOpenLog` and search for `ERROR` entries.
+- Open a discussion on [GitHub Discussions](https://github.com/neoclide/coc.nvim/discussions) with the output of `:CocInfo` and a description of the problem.
+- File a bug report on [GitHub Issues](https://github.com/neoclide/coc.nvim/issues) if you have a reproducible case.

@@ -1,0 +1,172 @@
+---
+title: 'Configuration overview'
+description: 'How coc.nvim configuration works: the coc-settings.json file, configuration scopes, file locations, and key Vim variables.'
+---
+
+coc.nvim uses a JSON configuration file called `coc-settings.json`. The format mirrors VS Code's `settings.json`, including support for comments.
+
+## Opening the configuration file
+
+Run `:CocConfig` to open (or create) your user configuration file. coc.nvim will create the file if it does not exist.
+
+<Tip>
+Install the `coc-json` extension for JSON schema completion and validation inside `coc-settings.json`:
+
+```vim
+:CocInstall coc-json
+```
+
+To fix comment syntax highlighting, add this to your `vimrc`:
+
+```vim
+autocmd FileType json syntax match Comment +\/\/.\+$+
+```
+</Tip>
+
+## Configuration file locations
+
+<CardGroup cols={2}>
+  <Card title="User (global) config" icon="user">
+    Opened by `:CocConfig`. Location is determined by `coc#util#get_config_home()`, typically `~/.config/nvim/coc-settings.json`.
+
+    Override the directory with `g:coc_config_home` in your `vimrc`:
+
+    ```vim
+    let g:coc_config_home = '/path/to/folder'
+    ```
+  </Card>
+  <Card title="Workspace (local) config" icon="folder">
+    Run `:CocLocalConfig` to create `.vim/coc-settings.json` inside your current workspace folder.
+
+    Workspace configuration takes precedence over user configuration.
+  </Card>
+</CardGroup>
+
+<Note>
+Workspace configuration only applies when the parent folder is resolved as a workspace folder. Start Vim from inside the project directory for reliable workspace detection.
+</Note>
+
+## Example coc-settings.json
+
+```json
+{
+  "suggest.noselect": true,
+  "suggest.autoTrigger": "always",
+  "diagnostic.enable": true,
+  "languageserver": {}
+}
+```
+
+## Configuration scopes
+
+Every setting belongs to one of three scopes that determines where it can be used.
+
+| Scope | Where it applies |
+|---|---|
+| `application` | User configuration file only |
+| `resource` | User and workspace configuration files |
+| `language-overridable` | User and workspace files, and language-scoped sections like `[typescript]` |
+
+**Language-scoped overrides** let you apply a setting only for specific filetypes:
+
+```json
+{
+  "[rust][lua][c]": {
+    "inlayHint.enable": false
+  }
+}
+```
+
+## Variable expansion
+
+String values in the configuration support variable expansion.
+
+**General variables:**
+
+| Variable | Expands to |
+|---|---|
+| `${userHome}` | User's home directory |
+| `${cwd}` | Current working directory of Vim |
+| `${env:NAME}` | Value of environment variable `NAME` |
+
+**Path-specific variables** (available in settings that accept file paths):
+
+| Variable | Expands to |
+|---|---|
+| `${workspaceFolder}` | Current file's workspace folder |
+| `${workspaceFolderBasename}` | Workspace folder name without slashes |
+| `${file}` | Current open file |
+| `${fileDirname}` | Current file's directory |
+| `${fileExtname}` | Current file's extension |
+| `${fileBasename}` | Current file's base name |
+| `${fileBasenameNoExtension}` | Base name without extension |
+
+The `~` prefix in path settings expands to the user's home directory.
+
+## Vim variables and environment
+
+<AccordionGroup>
+  <Accordion title="g:coc_data_home and $COC_DATA_HOME">
+    coc.nvim stores its runtime data (extensions, logs, etc.) in a data directory.
+
+    Set the directory via the environment variable before starting Vim:
+
+    ```bash
+    export COC_DATA_HOME="$HOME/.local/share/coc"
+    ```
+
+    Or via the Vim variable in your `vimrc`:
+
+    ```vim
+    let g:coc_data_home = '/path/to/data'
+    ```
+  </Accordion>
+  <Accordion title="g:coc_global_extensions">
+    Use `g:coc_global_extensions` to declare a list of extensions that coc.nvim will automatically install on startup if they are not already present.
+
+    ```vim
+    let g:coc_global_extensions = [
+      \ 'coc-json',
+      \ 'coc-tsserver',
+      \ 'coc-pyright'
+    \ ]
+    ```
+
+    This is useful for keeping extension sets reproducible across machines.
+  </Accordion>
+  <Accordion title="g:coc_user_config">
+    You can supply configuration values directly from Vim without a JSON file using `g:coc_user_config`. Values here override the user configuration file.
+
+    ```vim
+    let g:coc_user_config = {
+      \ 'suggest.noselect': v:true,
+      \ 'diagnostic.enable': v:true
+    \ }
+    ```
+
+    Alternatively, use the `coc#config()` API:
+
+    ```vim
+    call coc#config('suggest', {'noselect': v:true})
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Configuration precedence
+
+Settings are merged in this order, with later sources taking precedence:
+
+<Steps>
+  <Step title="Built-in defaults">
+    Default values defined by coc.nvim and each extension.
+  </Step>
+  <Step title="User configuration">
+    Values from the user `coc-settings.json` (`:CocConfig`).
+  </Step>
+  <Step title="g:coc_user_config or coc#config()">
+    Values set via Vim variables or the programmatic API.
+  </Step>
+  <Step title="Workspace configuration">
+    Values from `.vim/coc-settings.json` in the workspace folder (`:CocLocalConfig`).
+  </Step>
+</Steps>

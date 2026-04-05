@@ -1,0 +1,242 @@
+---
+title: "commands"
+description: "The commands module lets extensions register and execute named commands, making functionality available to users via key mappings, the command palette, and other extensions."
+---
+
+The `commands` module manages all registered commands. Access it via:
+
+```javascript
+const { commands } = require('coc.nvim')
+```
+
+---
+
+## Methods
+
+### registerCommand
+
+```typescript
+registerCommand<T>(
+  id: string,
+  impl: (...args: any[]) => T | Promise<T>,
+  thisArg?: any,
+  internal?: boolean
+): Disposable
+```
+
+Registers a command with the given `id`. Throws a warning if the same ID is registered twice.
+
+- **`id`** — A unique dot-separated string, e.g. `'myext.sayHello'`. Commands whose ID starts with `'_'` are automatically marked internal (hidden from the command list).
+- **`impl`** — The handler function. May be synchronous or return a `Promise`.
+- **`thisArg`** — Optional `this` context for `impl`.
+- **`internal`** — When `true`, the command is hidden from user-facing lists.
+
+Returns a `Disposable` that unregisters the command when disposed.
+
+```javascript
+const { commands } = require('coc.nvim')
+
+async function activate(context) {
+  const disposable = commands.registerCommand('myext.hello', async () => {
+    const { window } = require('coc.nvim')
+    await window.showInformationMessage('Hello from myext!')
+  })
+  context.subscriptions.push(disposable)
+}
+```
+
+---
+
+### executeCommand
+
+```typescript
+executeCommand<T>(command: string, ...rest: any[]): Promise<T>
+```
+
+Executes a registered command by ID and returns a `Promise` that resolves to the handler's return value. Throws if `command` is not found.
+
+```javascript
+// Execute a built-in coc command
+await commands.executeCommand('editor.action.formatDocument')
+
+// Execute with arguments
+await commands.executeCommand('myext.rename', 'newName')
+```
+
+---
+
+### fireCommand
+
+```typescript
+fireCommand(id: string, ...args: any[]): Promise<unknown>
+```
+
+Like `executeCommand`, but also fires the `'Command'` event (so `onCommand` activation events work) and records the command in the MRU history for repeat support.
+
+<Note>
+  Use `executeCommand` when calling commands programmatically from other code. `fireCommand` is intended for user-initiated invocations.
+</Note>
+
+---
+
+### has
+
+```typescript
+has(id: string): boolean
+```
+
+Returns `true` if a command with the given `id` is currently registered.
+
+---
+
+### unregister
+
+```typescript
+unregister(id: string): void
+```
+
+Unregisters and disposes the command with the given `id`. No-op if the command does not exist.
+
+---
+
+### commandList
+
+```typescript
+get commandList(): { id: string; title: string }[]
+```
+
+Returns all non-internal registered commands as an array of `{ id, title }` objects. The `title` comes from the `titles` map or the extension registry.
+
+---
+
+### repeatCommand
+
+```typescript
+repeatCommand(): Promise<void>
+```
+
+Re-executes the most recently used command from the MRU history. Used internally by `<Plug>(coc-command-repeat)`.
+
+---
+
+## Built-in coc commands
+
+These commands are registered by coc.nvim itself and can be executed via `commands.executeCommand` or triggered from Vim with `:CocCommand <id>`.
+
+<AccordionGroup>
+  <Accordion title="Extension management">
+    | Command | Description |
+    |---------|-------------|
+    | `extensions.installExtension` | Install one or more extensions by name |
+    | `extensions.updateExtension` | Update a specific extension |
+    | `extensions.removeExtension` | Uninstall an extension |
+    | `extensions.toggleExtension` | Enable or disable an extension |
+    | `extensions.openExtensionJson` | Open an extension's `package.json` |
+  </Accordion>
+
+  <Accordion title="Editor actions">
+    | Command | Description |
+    |---------|-------------|
+    | `editor.action.formatDocument` | Format the current document |
+    | `editor.action.formatSelection` | Format the current selection |
+    | `editor.action.rename` | Trigger rename symbol |
+    | `editor.action.doCodeAction` | Apply a code action |
+    | `editor.action.triggerSuggest` | Manually trigger completion |
+    | `editor.action.triggerParameterHints` | Show signature help |
+  </Accordion>
+
+  <Accordion title="Diagnostics & info">
+    | Command | Description |
+    |---------|-------------|
+    | `workspace.diagnosticRelated` | Jump to a related diagnostic location |
+    | `document.checkBuffer` | Re-check the current buffer |
+  </Accordion>
+
+  <Accordion title="Workspace">
+    | Command | Description |
+    |---------|-------------|
+    | `workbench.action.reloadWindow` | Restart coc.nvim |
+    | `workspace.clearJumplist` | Clear the coc jump list |
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+  Run `:CocList commands` inside Vim to see all currently registered non-internal commands.
+</Tip>
+
+---
+
+## Registering a command with a title
+
+To make your command discoverable in `:CocList commands`, set its title via the `titles` map:
+
+```javascript
+async function activate(context) {
+  context.subscriptions.push(
+    commands.registerCommand('myext.doSomething', async () => {
+      // ...
+    })
+  )
+  // Set a human-readable title
+  commands.titles.set('myext.doSomething', 'MyExt: Do Something')
+}
+```
+
+Alternatively, declare it in your extension's `package.json`:
+
+```json
+{
+  "contributes": {
+    "commands": [
+      {
+        "command": "myext.doSomething",
+        "title": "MyExt: Do Something"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## Calling commands across extensions
+
+Extensions can call each other's public commands:
+
+```javascript
+// In extension A — register
+commands.registerCommand('extA.getResult', async (input) => {
+  return `processed: ${input}`
+})
+
+// In extension B — call
+const result = await commands.executeCommand('extA.getResult', 'my input')
+```
+
+---
+
+## Full example
+
+```javascript
+const { commands, window, workspace } = require('coc.nvim')
+
+async function activate(context) {
+  // Register a command
+  context.subscriptions.push(
+    commands.registerCommand('myext.hello', async () => {
+      const name = await window.requestInput('Your name')
+      if (name) {
+        await window.showInformationMessage(`Hello, ${name}!`)
+      }
+    })
+  )
+
+  // Set a user-visible title
+  commands.titles.set('myext.hello', 'MyExt: Say Hello')
+
+  // Execute a built-in command programmatically
+  await commands.executeCommand('editor.action.formatDocument')
+}
+
+module.exports = { activate }
+```
